@@ -6,6 +6,7 @@ description = "Nergal is turn-based hexagonal tactical game"
 license = "MIT"
 repository = "https://github.com/ozkriff/nergal"
 keywords = ["opengl", "3D", "game"]
+readme = "README.md"
 
 [dependencies]
 glium = "*"
