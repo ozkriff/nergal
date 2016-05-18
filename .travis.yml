@@ -9,6 +9,10 @@ rust:
     - beta
     - stable
 
+os:
+    - linux
+    - osx
+
 script:
     - cargo build
 
