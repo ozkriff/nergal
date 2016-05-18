@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate glium;
 
-extern crate clock_ticks;
+extern crate time;
 
 use std::thread;
 use std::time::Duration;
@@ -27,13 +27,13 @@ pub fn start_loop<F>(mut callback: F)
     where F: FnMut() -> Action
 {
     let mut accumulator = 0;
-    let mut previous_clock = clock_ticks::precise_time_ns();
+    let mut previous_clock = time::precise_time_ns();
     loop {
         match callback() {
             Action::Stop => break,
             Action::Continue => ()
         }
-        let now = clock_ticks::precise_time_ns();
+        let now = time::precise_time_ns();
         accumulator += now - previous_clock;
         previous_clock = now;
         const FIXED_TIME_STAMP: u64 = 16666667;
