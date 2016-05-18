@@ -9,6 +9,7 @@ use std::thread;
 use std::time::Duration;
 use glium::{glutin, DisplayBuild, Surface};
 use glium::index::PrimitiveType;
+use glium::glutin::ElementState::{Released};
 
 #[derive(Copy, Clone)]
 struct Vertex {
@@ -133,6 +134,16 @@ fn main() {
         for event in display.poll_events() {
             match event {
                 glutin::Event::Closed => return Action::Stop,
+                glutin::Event::KeyboardInput(Released, _, Some(key)) => {
+                    match key {
+                        glutin::VirtualKeyCode::Q
+                            | glutin::VirtualKeyCode::Escape =>
+                        {
+                            return Action::Stop;
+                        }
+                        _ => {},
+                    }
+                },
                 _ => ()
             }
         }
