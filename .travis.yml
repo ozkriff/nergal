@@ -1,0 +1,13 @@
+# See LICENSE file for copyright and license details.
+
+language: rust
+
+rust:
+    - nightly
+    - beta
+    - stable
+
+script:
+    - cargo build
+
+# vim: set tabstop=4 shiftwidth=4 softtabstop=4 expandtab:
