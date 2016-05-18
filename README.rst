@@ -15,7 +15,7 @@ Nergal is turn-based hexagonal tactical game written in Rust_.
 Devlog
 ------
 
-Imgur albmum: http://imgur.com/a/XaGFl
+Imgur album: http://imgur.com/a/XaGFl
 
 
 Assets
