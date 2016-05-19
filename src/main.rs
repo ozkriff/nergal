@@ -35,7 +35,6 @@ fn make_program(display: &glium::Display) -> glium::Program {
         ",
         _ => unimplemented!(),
     }.to_string();
-    println!("OZKRIFF: API: {:?}", api);
     let vertex_shader_src = shader_src_preamble.clone() + r"
         uniform lowp mat4 matrix;
         attribute lowp vec2 position;
