@@ -87,17 +87,22 @@ fn make_program(display: &glium::Display) -> glium::Program {
     program
 }
 
-fn main() {
-    std::env::set_var("RUST_BACKTRACE", "1");
+fn create_display() -> glium::Display {
     let gl_version = glutin::GlRequest::GlThenGles {
         opengles_version: (2, 0),
-        opengl_version: (2, 0)
+        opengl_version: (2, 0),
     };
-    let display = glutin::WindowBuilder::new()
+    glutin::WindowBuilder::new()
         .with_gl(gl_version)
-        .with_title("Nergul".to_string())
+        // .with_depth_buffer(24) // TODO
+        .with_title("Nergal".to_string())
         .build_glium()
-        .unwrap();
+        .unwrap()
+}
+
+fn main() {
+    std::env::set_var("RUST_BACKTRACE", "1");
+    let display = create_display();
     let vertex_buffer = {
         let vertices = [
             Vertex { position: [-0.5, -0.5], color: [0.0, 1.0, 0.0] },
