@@ -90,7 +90,7 @@ fn make_program(display: &glium::Display) -> glium::Program {
 fn create_display() -> glium::Display {
     let gl_version = glutin::GlRequest::GlThenGles {
         opengles_version: (2, 0),
-        opengl_version: (2, 0),
+        opengl_version: (2, 1),
     };
     glutin::WindowBuilder::new()
         .with_gl(gl_version)
