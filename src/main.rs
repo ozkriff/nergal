@@ -11,6 +11,8 @@ use glium::{glutin, DisplayBuild, Surface};
 use glium::index::PrimitiveType;
 use glium::glutin::ElementState::{Released};
 
+const FPS: u64 = 60;
+
 #[derive(Copy, Clone)]
 struct Vertex {
     position: [f32; 2],
@@ -18,34 +20,6 @@ struct Vertex {
 }
 
 implement_vertex!(Vertex, position, color);
-
-pub enum Action {
-    Stop,
-    Continue,
-}
-
-pub fn start_loop<F>(mut callback: F)
-    where F: FnMut() -> Action
-{
-    let mut accumulator = 0;
-    let mut previous_clock = time::precise_time_ns();
-    loop {
-        match callback() {
-            Action::Stop => break,
-            Action::Continue => ()
-        }
-        let now = time::precise_time_ns();
-        accumulator += now - previous_clock;
-        previous_clock = now;
-        const FIXED_TIME_STAMP: u64 = 16666667;
-        while accumulator >= FIXED_TIME_STAMP {
-            accumulator -= FIXED_TIME_STAMP;
-            // if you have a game, update the state here
-        }
-        thread::sleep(Duration::from_millis(
-            ((FIXED_TIME_STAMP - accumulator) / 1000000) as u64));
-    }
-}
 
 fn make_program(display: &glium::Display) -> glium::Program {
     let api = display.get_window().unwrap().get_api();
@@ -100,60 +74,114 @@ fn create_display() -> glium::Display {
         .unwrap()
 }
 
-fn main() {
-    std::env::set_var("RUST_BACKTRACE", "1");
-    let display = create_display();
-    let vertex_buffer = {
-        let vertices = [
-            Vertex { position: [-0.5, -0.5], color: [0.0, 1.0, 0.0] },
-            Vertex { position: [ 0.0,  0.5], color: [0.0, 0.0, 1.0] },
-            Vertex { position: [ 0.5, -0.5], color: [1.0, 0.0, 0.0] },
-        ];
-        glium::VertexBuffer::new(&display, &vertices).unwrap()
-    };
-    let index_buffer = glium::IndexBuffer::new(
-        &display, PrimitiveType::TrianglesList, &[0u16, 1, 2]).unwrap();
-    let program = make_program(&display);
-    start_loop(|| {
-        let uniforms = uniform! {
-            matrix: [
-                [1.0, 0.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0f32],
-            ]
+struct Visualizer {
+    display: glium::Display,
+    program: glium::Program,
+    is_running: bool,
+    accumulator: u64,
+    previous_clock: u64,
+    vertex_buffer: glium::VertexBuffer<Vertex>,
+    index_buffer: glium::IndexBuffer<u16>,
+}
+
+impl Visualizer {
+    fn new() -> Visualizer {
+        let display = create_display();
+        let program = make_program(&display);
+        let vertex_buffer = {
+            let vertices = [
+                Vertex { position: [-0.5, -0.5], color: [0.0, 1.0, 0.0] },
+                Vertex { position: [ 0.0,  0.5], color: [0.0, 0.0, 1.0] },
+                Vertex { position: [ 0.5, -0.5], color: [1.0, 0.0, 0.0] },
+            ];
+            glium::VertexBuffer::new(&display, &vertices).unwrap()
         };
-        {
-            // fn draw() { ...
-            let mut target = display.draw();
-            target.clear_color(0.0, 0.0, 0.0, 0.0);
-            target.draw(
-                &vertex_buffer,
-                &index_buffer,
-                &program,
-                &uniforms,
-                &Default::default(),
-            ).unwrap();
-            target.finish().unwrap();
+        let index_buffer = glium::IndexBuffer::new(
+            &display, PrimitiveType::TrianglesList, &[0u16, 1, 2]).unwrap();
+        let accumulator = 0;
+        let previous_clock = time::precise_time_ns();
+        Visualizer {
+            display: display,
+            program: program,
+            is_running: true,
+            accumulator: accumulator,
+            previous_clock: previous_clock,
+            vertex_buffer: vertex_buffer,
+            index_buffer: index_buffer,
         }
-        for event in display.poll_events() {
+    }
+
+    fn is_running(&self) -> bool {
+        self.is_running
+    }
+
+    fn handle_events(&mut self) {
+        let events: Vec<_> = self.display.poll_events().collect();
+        for event in events {
             match event {
-                glutin::Event::Closed => return Action::Stop,
+                // glutin::Event::Resized(x, y) => {}, // TODO
+                glutin::Event::Closed => {
+                    self.is_running = false;
+                },
                 glutin::Event::KeyboardInput(Released, _, Some(key)) => {
                     match key {
                         glutin::VirtualKeyCode::Q
                             | glutin::VirtualKeyCode::Escape =>
                         {
-                            return Action::Stop;
-                        }
+                            self.is_running = false;
+                        },
                         _ => {},
                     }
                 },
-                _ => ()
+                _ => (),
             }
         }
-        Action::Continue
-    });
+    }
+
+    fn draw(&self) {
+        let view_matrix: [[f32; 4]; 4] = [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ];
+        let uniforms = uniform! {
+            matrix: view_matrix,
+        };
+        let mut target = self.display.draw();
+        target.clear_color(0.0, 0.0, 0.0, 0.0);
+        target.draw(
+            &self.vertex_buffer,
+            &self.index_buffer,
+            &self.program,
+            &uniforms,
+            &Default::default(),
+        ).unwrap();
+        target.finish().unwrap();
+    }
+
+    fn update_timer(&mut self) {
+        let fixed_time_stamp = 1_000_000_000 / FPS;
+        let now = time::precise_time_ns();
+        self.accumulator += now - self.previous_clock;
+        self.previous_clock = now;
+        while self.accumulator >= fixed_time_stamp {
+            self.accumulator -= fixed_time_stamp;
+            // TODO: update realtime state here
+        }
+        let remainder_ms = (fixed_time_stamp - self.accumulator) / 1_000_000;
+        thread::sleep(Duration::from_millis(remainder_ms));
+    }
+}
+
+fn main() {
+    std::env::set_var("RUST_BACKTRACE", "1");
+    let mut visualizer = Visualizer::new();
+    while visualizer.is_running() {
+        visualizer.draw();
+        visualizer.handle_events();
+        visualizer.update_timer();
+    }
 }
 
 // vim: set tabstop=4 shiftwidth=4 softtabstop=4 expandtab:
