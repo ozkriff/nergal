@@ -11,3 +11,9 @@ readme = "README.md"
 [dependencies]
 glium = "*"
 time = "*"
+
+[target.'cfg(target_os = "android")'.dependencies.android_glue]
+version = "*"
+
+[package.metadata.android]
+assets = "assets"

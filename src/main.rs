@@ -5,6 +5,11 @@ extern crate glium;
 
 extern crate time;
 
+#[cfg(target_os = "android")]
+extern crate android_glue;
+
+mod fs;
+
 use std::thread;
 use std::time::Duration;
 use glium::{glutin, DisplayBuild, Surface};
@@ -23,41 +28,14 @@ implement_vertex!(Vertex, position, color);
 
 fn make_program(display: &glium::Display) -> glium::Program {
     let api = display.get_window().unwrap().get_api();
-    let shader_src_preamble = match api {
-        glium::glutin::Api::OpenGl => r"
-            #version 120
-            #define lowp
-            #define mediump
-            #define highp
-        ",
-        glium::glutin::Api::OpenGlEs => r"
-            #version 100
-        ",
+    let pre_src = fs::load_string(match api {
+        glutin::Api::OpenGl => "pre_gl.glsl",
+        glutin::Api::OpenGlEs => "pre_gles.glsl",
         _ => unimplemented!(),
-    }.to_string();
-    let vertex_shader_src = shader_src_preamble.clone() + r"
-        uniform lowp mat4 matrix;
-        attribute lowp vec2 position;
-        attribute lowp vec3 color;
-        varying lowp vec3 vColor;
-        void main() {
-            gl_Position = vec4(position, 0.0, 1.0) * matrix;
-            vColor = color;
-        }
-    ";
-    let fragment_shader_src = shader_src_preamble + r"
-        varying lowp vec3 vColor;
-        void main() {
-            gl_FragColor = vec4(vColor, 1.0);
-        }
-    ";
-    let program = glium::Program::from_source(
-        display,
-        &vertex_shader_src,
-        &fragment_shader_src,
-        None
-    ).unwrap();
-    program
+    });
+    let vs_src = pre_src.clone() + &fs::load_string("vs.glsl");
+    let fs_src = pre_src + &fs::load_string("fs.glsl");
+    glium::Program::from_source(display, &vs_src, &fs_src, None).unwrap()
 }
 
 fn create_display() -> glium::Display {
