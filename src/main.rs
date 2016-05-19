@@ -94,7 +94,7 @@ fn create_display() -> glium::Display {
     };
     glutin::WindowBuilder::new()
         .with_gl(gl_version)
-        // .with_depth_buffer(24) // TODO
+        .with_depth_buffer(24)
         .with_title("Nergal".to_string())
         .build_glium()
         .unwrap()
