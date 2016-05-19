@@ -4,6 +4,7 @@ Nergal
 
 |license|_
 |travis-ci|_
+|appveyor-ci|_
 
 
 Overview
@@ -70,8 +71,10 @@ MIT_
 
 .. |license| image:: http://img.shields.io/badge/license-MIT-blue.svg
 .. |travis-ci| image:: https://travis-ci.org/ozkriff/nergal.svg?branch=master
+.. |appveyor-ci| image:: https://ci.appveyor.com/api/projects/status/44qi229by08ewk7e/branch/master?svg=true
 
 .. _Rust: https://rust-lang.org
 .. _MIT: https://github.com/ozkriff/nergal/blob/master/LICENSE
 .. _license: https://github.com/ozkriff/nergal/blob/master/LICENSE
 .. _travis-ci: https://travis-ci.org/ozkriff/nergal
+.. _appveyor-ci: https://ci.appveyor.com/project/ozkriff/nergal
