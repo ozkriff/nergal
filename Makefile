@@ -9,10 +9,14 @@ run: assets
 	RUST_BACKTRACE=1 cargo run $(CARGO_FLAGS)
 
 assets:
-	# TODO: git clone --depth=1 https://github.com/ozkriff/nergal_assets assets
-	mkdir assets
+	git clone --depth=1 https://github.com/ozkriff/nergal_assets assets
+
+APK = ./target/android-artifacts/build/bin/nergal-debug.apk
 
 android: assets
 	cargo apk
+	adb install -r $(APK)
+	adb logcat -c
+	adb logcat | grep Rust
 
 .PHONY: nirgal run android
