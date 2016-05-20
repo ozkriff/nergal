@@ -22,7 +22,7 @@ const FPS: u64 = 60;
 
 #[derive(Copy, Clone)]
 struct Vertex {
-    position: [f32; 2],
+    position: [f32; 3],
     tex_coords: [f32; 2],
 }
 
@@ -79,10 +79,10 @@ impl Visualizer {
         let program = make_program(&display);
         let vertex_buffer = {
             let vertices = [
-                Vertex { position: [-0.5, -0.5], tex_coords: [0.0, 0.0] },
-                Vertex { position: [-0.5,  0.5], tex_coords: [0.0, 1.0] },
-                Vertex { position: [ 0.5, -0.5], tex_coords: [1.0, 0.0] },
-                Vertex { position: [ 0.5,  0.5], tex_coords: [1.0, 1.0] },
+                Vertex { position: [-0.5, -0.5, 0.0], tex_coords: [0.0, 0.0] },
+                Vertex { position: [-0.5,  0.5, 0.0], tex_coords: [0.0, 1.0] },
+                Vertex { position: [ 0.5, -0.5, 0.0], tex_coords: [1.0, 0.0] },
+                Vertex { position: [ 0.5,  0.5, 0.0], tex_coords: [1.0, 1.0] },
             ];
             glium::VertexBuffer::new(&display, &vertices).unwrap()
         };
