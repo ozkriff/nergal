@@ -4,15 +4,17 @@
 extern crate glium;
 
 extern crate time;
+extern crate image;
 
 #[cfg(target_os = "android")]
 extern crate android_glue;
 
 mod fs;
 
+use std::path::{Path};
 use std::thread;
 use std::time::Duration;
-use glium::{glutin, DisplayBuild, Surface};
+use glium::{glutin, Texture2d, DisplayBuild, Surface};
 use glium::index::PrimitiveType;
 use glium::glutin::ElementState::{Released};
 
@@ -21,10 +23,19 @@ const FPS: u64 = 60;
 #[derive(Copy, Clone)]
 struct Vertex {
     position: [f32; 2],
-    color: [f32; 3],
+    tex_coords: [f32; 2],
 }
 
-implement_vertex!(Vertex, position, color);
+implement_vertex!(Vertex, position, tex_coords);
+
+fn load_texture<P: AsRef<Path>>(display: &glium::Display, path: P) -> Texture2d {
+    let f = fs::load(path);
+    let image = image::load(f, image::PNG).unwrap().to_rgba();
+    let image_dimensions = image.dimensions();
+    let image = glium::texture::RawImage2d::from_raw_rgba_reversed(
+        image.into_raw(), image_dimensions);
+    Texture2d::new(display, image).unwrap()
+}
 
 fn make_program(display: &glium::Display) -> glium::Program {
     let api = display.get_window().unwrap().get_api();
@@ -59,6 +70,7 @@ struct Visualizer {
     previous_clock: u64,
     vertex_buffer: glium::VertexBuffer<Vertex>,
     index_buffer: glium::IndexBuffer<u16>,
+    texture: Texture2d,
 }
 
 impl Visualizer {
@@ -67,14 +79,16 @@ impl Visualizer {
         let program = make_program(&display);
         let vertex_buffer = {
             let vertices = [
-                Vertex { position: [-0.5, -0.5], color: [0.0, 1.0, 0.0] },
-                Vertex { position: [ 0.0,  0.5], color: [0.0, 0.0, 1.0] },
-                Vertex { position: [ 0.5, -0.5], color: [1.0, 0.0, 0.0] },
+                Vertex { position: [-0.5, -0.5], tex_coords: [0.0, 0.0] },
+                Vertex { position: [-0.5,  0.5], tex_coords: [0.0, 1.0] },
+                Vertex { position: [ 0.5, -0.5], tex_coords: [1.0, 0.0] },
+                Vertex { position: [ 0.5,  0.5], tex_coords: [1.0, 1.0] },
             ];
             glium::VertexBuffer::new(&display, &vertices).unwrap()
         };
         let index_buffer = glium::IndexBuffer::new(
-            &display, PrimitiveType::TrianglesList, &[0u16, 1, 2]).unwrap();
+            &display, PrimitiveType::TrianglesList, &[0u16, 1, 2, 1, 2, 3]).unwrap();
+        let texture = load_texture(&display, "test.png");
         let accumulator = 0;
         let previous_clock = time::precise_time_ns();
         Visualizer {
@@ -85,6 +99,7 @@ impl Visualizer {
             previous_clock: previous_clock,
             vertex_buffer: vertex_buffer,
             index_buffer: index_buffer,
+            texture: texture,
         }
     }
 
@@ -124,6 +139,7 @@ impl Visualizer {
         ];
         let uniforms = uniform! {
             matrix: view_matrix,
+            texture: &self.texture,
         };
         let mut target = self.display.draw();
         target.clear_color(0.0, 0.0, 0.0, 0.0);

@@ -12,6 +12,11 @@ readme = "README.md"
 glium = "*"
 time = "*"
 
+[dependencies.image]
+version = "*"
+default-features = false
+features = ["png_codec"]
+
 [target.'cfg(target_os = "android")'.dependencies.android_glue]
 version = "*"
 
