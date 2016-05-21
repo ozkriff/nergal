@@ -15,8 +15,11 @@ APK = ./target/android-artifacts/build/bin/nergal-debug.apk
 
 android: assets
 	cargo apk
+
+android_install_run_log: android
 	adb install -r $(APK)
 	adb logcat -c
+	adb shell am start -n rust.nergal/rust.nergal.MainActivity
 	adb logcat | grep Rust
 
 .PHONY: nirgal run android
