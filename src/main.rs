@@ -18,8 +18,8 @@ use std::thread;
 use std::time::Duration;
 use glium::{glutin, Texture2d, DisplayBuild, Surface};
 use glium::index::PrimitiveType;
-use glium::glutin::ElementState::{Released};
-use cgmath::{Matrix4, Matrix3, Vector3, Rad};
+use glium::glutin::ElementState::{Pressed, Released};
+use cgmath::{Matrix4, Matrix3, Vector3, Vector2, Rad};
 
 const FPS: u64 = 60;
 
@@ -60,6 +60,16 @@ fn view_matrix(angle_x: Rad<f32>, angle_y: Rad<f32>, aspect: f32) -> Matrix4<f32
     perspective_mat * tr_mat * angle_y_m * angle_x_m
 }
 
+fn win_size(display: &glium::Display) -> (u32, u32) {
+    let window = display.get_window().unwrap();
+    window.get_inner_size().unwrap()
+}
+
+fn aspect(display: &glium::Display) -> f32 {
+    let (x, y) = win_size(display);
+    x as f32 / y as f32
+}
+
 fn create_display() -> glium::Display {
     let gl_version = glutin::GlRequest::GlThenGles {
         opengles_version: (2, 0),
@@ -85,17 +95,15 @@ struct Visualizer {
     camera_angle_x: Rad<f32>,
     camera_angle_y: Rad<f32>,
     aspect: f32,
+    mouse_pos: Vector2<i32>,
+    is_lmb_pressed: bool,
 }
 
 impl Visualizer {
     fn new() -> Visualizer {
         let display = create_display();
         let program = make_program(&display);
-        let aspect = {
-            let window = display.get_window().unwrap();
-            let (x, y) = window.get_inner_size().unwrap();
-            x as f32 / y as f32
-        };
+        let aspect = aspect(&display);
         let vertex_buffer = {
             let vertices = [
                 Vertex { position: [-0.5, -0.5, 0.0], tex_coords: [0.0, 1.0] },
@@ -122,6 +130,8 @@ impl Visualizer {
             camera_angle_x: Rad::new(0.0),
             camera_angle_y: Rad::new(0.0),
             aspect: aspect,
+            mouse_pos: Vector2{x: 0, y: 0},
+            is_lmb_pressed: false,
         }
     }
 
@@ -130,6 +140,7 @@ impl Visualizer {
     }
 
     fn handle_events(&mut self) {
+        self.aspect = aspect(&self.display);
         let rotate_step = PI / 12.0;
         let events: Vec<_> = self.display.poll_events().collect();
         for event in events {
@@ -154,8 +165,44 @@ impl Visualizer {
                         _ => {},
                     }
                 },
+                glutin::Event::MouseMoved(x, y) => {
+                    self.handle_mouse_move(Vector2{x: x, y: y});
+                },
+                glutin::Event::MouseInput(Pressed, glutin::MouseButton::Left) => {
+                    self.is_lmb_pressed = true;
+                },
+                glutin::Event::MouseInput(Released, glutin::MouseButton::Left) => {
+                    self.is_lmb_pressed = false;
+                },
+                glutin::Event::Touch(glutin::Touch{location: (x, y), phase, ..}) => {
+                    let pos = Vector2{x: x as i32, y: y as i32};
+                    match phase {
+                        glutin::TouchPhase::Moved => {
+                            self.handle_mouse_move(pos);
+                        },
+                        glutin::TouchPhase::Started => {
+                            self.is_lmb_pressed = true;
+                            self.mouse_pos = pos;
+                        },
+                        glutin::TouchPhase::Ended => {
+                            self.mouse_pos = pos;
+                            self.is_lmb_pressed = false;
+                        },
+                        glutin::TouchPhase::Cancelled => unimplemented!(),
+                    }
+                },
                 _ => (),
             }
+        }
+    }
+
+    fn handle_mouse_move(&mut self, pos: Vector2<i32>) {
+        let diff = self.mouse_pos - pos;
+        self.mouse_pos = pos;
+        if self.is_lmb_pressed {
+            let (w, h) = win_size(&self.display);
+            self.camera_angle_x.s += PI * (diff.x as f32 / w as f32);
+            self.camera_angle_y.s += PI * (diff.y as f32 / h as f32);
         }
     }
 
