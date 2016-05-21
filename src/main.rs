@@ -35,7 +35,7 @@ fn load_texture<P: AsRef<Path>>(display: &glium::Display, path: P) -> Texture2d 
     let f = fs::load(path);
     let image = image::load(f, image::PNG).unwrap().to_rgba();
     let image_dimensions = image.dimensions();
-    let image = glium::texture::RawImage2d::from_raw_rgba_reversed(
+    let image = glium::texture::RawImage2d::from_raw_rgba(
         image.into_raw(), image_dimensions);
     Texture2d::new(display, image).unwrap()
 }
@@ -98,10 +98,10 @@ impl Visualizer {
         };
         let vertex_buffer = {
             let vertices = [
-                Vertex { position: [-0.5, -0.5, 0.0], tex_coords: [0.0, 0.0] },
-                Vertex { position: [-0.5,  0.5, 0.0], tex_coords: [0.0, 1.0] },
-                Vertex { position: [ 0.5, -0.5, 0.0], tex_coords: [1.0, 0.0] },
-                Vertex { position: [ 0.5,  0.5, 0.0], tex_coords: [1.0, 1.0] },
+                Vertex { position: [-0.5, -0.5, 0.0], tex_coords: [0.0, 1.0] },
+                Vertex { position: [-0.5,  0.5, 0.0], tex_coords: [0.0, 0.0] },
+                Vertex { position: [ 0.5, -0.5, 0.0], tex_coords: [1.0, 1.0] },
+                Vertex { position: [ 0.5,  0.5, 0.0], tex_coords: [1.0, 0.0] },
             ];
             glium::VertexBuffer::new(&display, &vertices).unwrap()
         };
