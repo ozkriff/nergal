@@ -5,6 +5,7 @@ extern crate glium;
 
 extern crate time;
 extern crate image;
+extern crate cgmath;
 
 #[cfg(target_os = "android")]
 extern crate android_glue;
@@ -12,11 +13,13 @@ extern crate android_glue;
 mod fs;
 
 use std::path::{Path};
+use std::f32::consts::{PI};
 use std::thread;
 use std::time::Duration;
 use glium::{glutin, Texture2d, DisplayBuild, Surface};
 use glium::index::PrimitiveType;
 use glium::glutin::ElementState::{Released};
+use cgmath::{Matrix4, Matrix3, Vector3, Rad};
 
 const FPS: u64 = 60;
 
@@ -49,6 +52,14 @@ fn make_program(display: &glium::Display) -> glium::Program {
     glium::Program::from_source(display, &vs_src, &fs_src, None).unwrap()
 }
 
+fn view_matrix(angle_x: Rad<f32>, angle_y: Rad<f32>, aspect: f32) -> Matrix4<f32> {
+    let perspective_mat = cgmath::perspective(Rad::new(PI / 4.0), aspect, 0.1, 100.0);
+    let tr_mat = Matrix4::from_translation(Vector3{x: 0.0, y: 0.0, z: -10.0});
+    let angle_x_m = Matrix4::from(Matrix3::from_angle_z(angle_x));
+    let angle_y_m = Matrix4::from(Matrix3::from_angle_x(angle_y));
+    perspective_mat * tr_mat * angle_y_m * angle_x_m
+}
+
 fn create_display() -> glium::Display {
     let gl_version = glutin::GlRequest::GlThenGles {
         opengles_version: (2, 0),
@@ -71,12 +82,20 @@ struct Visualizer {
     vertex_buffer: glium::VertexBuffer<Vertex>,
     index_buffer: glium::IndexBuffer<u16>,
     texture: Texture2d,
+    camera_angle_x: Rad<f32>,
+    camera_angle_y: Rad<f32>,
+    aspect: f32,
 }
 
 impl Visualizer {
     fn new() -> Visualizer {
         let display = create_display();
         let program = make_program(&display);
+        let aspect = {
+            let window = display.get_window().unwrap();
+            let (x, y) = window.get_inner_size().unwrap();
+            x as f32 / y as f32
+        };
         let vertex_buffer = {
             let vertices = [
                 Vertex { position: [-0.5, -0.5, 0.0], tex_coords: [0.0, 0.0] },
@@ -100,6 +119,9 @@ impl Visualizer {
             vertex_buffer: vertex_buffer,
             index_buffer: index_buffer,
             texture: texture,
+            camera_angle_x: Rad::new(0.0),
+            camera_angle_y: Rad::new(0.0),
+            aspect: aspect,
         }
     }
 
@@ -108,10 +130,13 @@ impl Visualizer {
     }
 
     fn handle_events(&mut self) {
+        let rotate_step = PI / 12.0;
         let events: Vec<_> = self.display.poll_events().collect();
         for event in events {
             match event {
-                // glutin::Event::Resized(x, y) => {}, // TODO
+                glutin::Event::Resized(x, y) => {
+                    self.aspect = x as f32 / y as f32;
+                },
                 glutin::Event::Closed => {
                     self.is_running = false;
                 },
@@ -122,6 +147,10 @@ impl Visualizer {
                         {
                             self.is_running = false;
                         },
+                        glutin::VirtualKeyCode::Right => self.camera_angle_x.s += rotate_step,
+                        glutin::VirtualKeyCode::Left => self.camera_angle_x.s -= rotate_step,
+                        glutin::VirtualKeyCode::Down => self.camera_angle_y.s += rotate_step,
+                        glutin::VirtualKeyCode::Up => self.camera_angle_y.s -= rotate_step,
                         _ => {},
                     }
                 },
@@ -131,14 +160,10 @@ impl Visualizer {
     }
 
     fn draw(&self) {
-        let view_matrix: [[f32; 4]; 4] = [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ];
+        let view_mat: [[f32; 4]; 4] = view_matrix(
+            self.camera_angle_x, self.camera_angle_y, self.aspect).into();
         let uniforms = uniform! {
-            matrix: view_matrix,
+            view_mat: view_mat,
             texture: &self.texture,
         };
         let mut target = self.display.draw();
