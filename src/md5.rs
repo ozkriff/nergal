@@ -113,6 +113,7 @@ pub struct Anim {
     joints: Vec<Joint>,
     num_animated_components: usize,
     frame: usize,
+    frame_rate: usize,
 }
 
 impl Anim {
@@ -229,7 +230,7 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
                 m.weights.reserve(num_weights)
             }
             if tag == "vert" {
-                let index: usize = parse_word(&mut words);
+                let index = parse_word(&mut words);
                 expect_word(&mut words, "(");
                 let tex_coords = Vector2 {
                     x: parse_word(&mut words),
@@ -248,7 +249,7 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
                 assert_eq!(m.vertex_weight_indices.len() - 1, index);
             }
             if tag == "weight" {
-                let index: usize = parse_word(&mut words);
+                let index = parse_word(&mut words);
                 let joint_index = parse_word(&mut words);
                 let weight = parse_word(&mut words);
                 expect_word(&mut words, "(");
@@ -396,7 +397,7 @@ fn load_hierarchy(buf: &mut BufRead) -> Vec<HierarchyItem> {
         let name: String = words.next().unwrap().trim_matches('"').into();
         let parent: isize = parse_word(&mut words);
         let flags: i32 = parse_word(&mut words);
-        let start_index: usize = parse_word(&mut words);
+        let start_index = parse_word(&mut words);
         hierarchy.push(HierarchyItem {
             name: name,
             parent: if parent != -1 {
@@ -465,13 +466,14 @@ pub fn load_anim<P: AsRef<Path>>(path: P) -> Anim {
         joints: Vec::new(),
         num_animated_components: 0,
         frame: 0,
+        frame_rate: 0,
     };
-    let mut num_joints: usize = 0;
+    let mut num_joints = 0;
     while let Some(line) = read_line(&mut buf) {
         let mut words = line.split_whitespace();
         if let Some(tag) = words.next() {
             if tag == "numFrames" {
-                let num_frames: usize = parse_word(&mut words);
+                let num_frames = parse_word(&mut words);
                 anim.frames.reserve(num_frames);
             }
             if tag == "numJoints" {
@@ -481,7 +483,7 @@ pub fn load_anim<P: AsRef<Path>>(path: P) -> Anim {
                 anim.joints.reserve(num_joints);
             }
             if tag == "frameRate" {
-                let _: usize = parse_word(&mut words); // TODO: interpolation!
+                anim.frame_rate = parse_word(&mut words);
             }
             if tag == "numAnimatedComponents" {
                 anim.num_animated_components = parse_word(&mut words);
@@ -499,7 +501,7 @@ pub fn load_anim<P: AsRef<Path>>(path: P) -> Anim {
                 anim.base_frame = load_base_frame(&mut buf);
             }
             if tag == "frame" {
-                let index: usize = parse_word(&mut words);
+                let index = parse_word(&mut words);
                 expect_word(&mut words, "{");
                 anim.frames.push(load_frame(
                     &mut buf, anim.num_animated_components));
