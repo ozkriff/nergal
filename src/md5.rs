@@ -134,11 +134,9 @@ impl Anim {
     fn reset_joints(&mut self) {
         for i in 0..self.joints.len() {
             let j = &mut self.joints[i];
-            // получается, каждый кадр String копируется? Не круто
-            j.name = self.hierarchy[i].name.clone();
-            j.parent_index = self.hierarchy[i].parent;
-            j.position = self.base_frame[i].position;
-            j.orient = self.base_frame[i].orient;
+            let f = &self.base_frame[i];
+            j.position = f.position;
+            j.orient = f.orient;
         }
     }
 
@@ -520,9 +518,8 @@ pub fn load_anim<P: AsRef<Path>>(path: P) -> Anim {
             }
         }
     }
-    // a.joints = ALLOCATE(a.num_joints, Joint); // TODO: reserve
+    anim.joints.reserve(num_joints);
     for i in 0..num_joints {
-        // TODO: дублирование логики с reset_joints :(
         anim.joints.push(Joint {
             name: anim.hierarchy[i].name.clone(),
             parent_index: anim.hierarchy[i].parent,
