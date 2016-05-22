@@ -19,7 +19,7 @@ use std::f32::consts::{PI};
 use std::thread;
 use std::time::Duration;
 use rand::{thread_rng, Rng};
-use glium::{glutin, Texture2d, DisplayBuild, Surface};
+use glium::{glutin, Texture2d, DisplayBuild, Surface, VertexBuffer, IndexBuffer, Display};
 use glium::index::PrimitiveType;
 use glium::glutin::ElementState::{Pressed, Released};
 use cgmath::{Matrix4, Matrix3, Vector3, Vector2, Rad};
@@ -40,7 +40,7 @@ pub struct VertexTexCoords {
 implement_vertex!(VertexPos, position);
 implement_vertex!(VertexTexCoords, tex_coords);
 
-fn load_texture<P: AsRef<Path>>(display: &glium::Display, path: P) -> Texture2d {
+fn load_texture<P: AsRef<Path>>(display: &Display, path: P) -> Texture2d {
     let f = fs::load(path);
     let image = image::load(f, image::PNG).unwrap().to_rgba();
     let image_dimensions = image.dimensions();
@@ -49,7 +49,7 @@ fn load_texture<P: AsRef<Path>>(display: &glium::Display, path: P) -> Texture2d 
     Texture2d::new(display, image).unwrap()
 }
 
-fn make_program(display: &glium::Display) -> glium::Program {
+fn make_program(display: &Display) -> glium::Program {
     let api = display.get_window().unwrap().get_api();
     let pre_src = fs::load_string(match api {
         glutin::Api::OpenGl => "pre_gl.glsl",
@@ -80,17 +80,17 @@ fn draw_parameters() -> glium::DrawParameters<'static> {
     }
 }
 
-fn win_size(display: &glium::Display) -> (u32, u32) {
+fn win_size(display: &Display) -> (u32, u32) {
     let window = display.get_window().unwrap();
     window.get_inner_size().unwrap()
 }
 
-fn aspect(display: &glium::Display) -> f32 {
+fn aspect(display: &Display) -> f32 {
     let (x, y) = win_size(display);
     x as f32 / y as f32
 }
 
-fn create_display() -> glium::Display {
+fn create_display() -> Display {
     let gl_version = glutin::GlRequest::GlThenGles {
         opengles_version: (2, 0),
         opengl_version: (2, 1),
@@ -105,19 +105,19 @@ fn create_display() -> glium::Display {
 
 // TODO: это все надо как-то более человечно сделать и названия нормальные дать
 struct MeshRenderInfo {
-    vertex_positions_buffer: glium::VertexBuffer<VertexPos>,
-    vertex_tex_coords_buffer: glium::VertexBuffer<VertexTexCoords>,
-    index_buffer: glium::IndexBuffer<u16>,
+    vertex_positions_buffer: VertexBuffer<VertexPos>,
+    vertex_tex_coords_buffer: VertexBuffer<VertexTexCoords>,
+    index_buffer: IndexBuffer<u16>,
     texture: Texture2d,
 }
 
-fn prepare_mesh(mesh: &md5::Mesh, display: &glium::Display) -> MeshRenderInfo {
+fn prepare_mesh(mesh: &md5::Mesh, display: &Display) -> MeshRenderInfo {
     let prim_type = PrimitiveType::TrianglesList;
-    let index_buffer = glium::IndexBuffer::new(
+    let index_buffer = IndexBuffer::new(
         display, prim_type, mesh.indices()).unwrap();
-    let vertex_positions_buffer = glium::VertexBuffer::new(
+    let vertex_positions_buffer = VertexBuffer::new(
         display, mesh.vertex_positions()).unwrap();
-    let vertex_tex_coords_buffer = glium::VertexBuffer::new(
+    let vertex_tex_coords_buffer = VertexBuffer::new(
         display, mesh.vertex_tex_coords()).unwrap();
     let texture = load_texture(display, mesh.shader());
     MeshRenderInfo {
@@ -128,7 +128,7 @@ fn prepare_mesh(mesh: &md5::Mesh, display: &glium::Display) -> MeshRenderInfo {
     }
 }
 
-fn prepare_model(model: &md5::Model, display: &glium::Display) -> Vec<MeshRenderInfo> {
+fn prepare_model(model: &md5::Model, display: &Display) -> Vec<MeshRenderInfo> {
     let mut v = Vec::new();
     for mesh in model.meshes() {
         v.push(prepare_mesh(mesh, display));
@@ -142,7 +142,7 @@ struct A {
 }
 
 struct Visualizer {
-    display: glium::Display,
+    display: Display,
     program: glium::Program,
     is_running: bool,
     accumulator: u64,
@@ -297,7 +297,7 @@ impl Visualizer {
                 self.model.compute(self.a[y * N + x].anim.joints());
                 for (i, ri) in self.model_render_infos.iter_mut().enumerate() {
                     let vertex_positions = self.model.meshes()[i].vertex_positions();
-                    ri.vertex_positions_buffer = glium::VertexBuffer::new(
+                    ri.vertex_positions_buffer = VertexBuffer::new(
                         &self.display, vertex_positions).unwrap();
                 }
                 let t = Vector3 {
