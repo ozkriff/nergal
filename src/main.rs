@@ -52,9 +52,9 @@ fn make_program(display: &glium::Display) -> glium::Program {
     glium::Program::from_source(display, &vs_src, &fs_src, None).unwrap()
 }
 
-fn view_matrix(angle_x: Rad<f32>, angle_y: Rad<f32>, aspect: f32) -> Matrix4<f32> {
+fn view_matrix(angle_x: Rad<f32>, angle_y: Rad<f32>, zoom: f32, aspect: f32) -> Matrix4<f32> {
     let perspective_mat = cgmath::perspective(Rad::new(PI / 4.0), aspect, 0.1, 100.0);
-    let tr_mat = Matrix4::from_translation(Vector3{x: 0.0, y: 0.0, z: -10.0});
+    let tr_mat = Matrix4::from_translation(Vector3{x: 0.0, y: 0.0, z: -zoom});
     let angle_x_m = Matrix4::from(Matrix3::from_angle_z(angle_x));
     let angle_y_m = Matrix4::from(Matrix3::from_angle_x(angle_y));
     perspective_mat * tr_mat * angle_y_m * angle_x_m
@@ -94,6 +94,7 @@ struct Visualizer {
     texture: Texture2d,
     camera_angle_x: Rad<f32>,
     camera_angle_y: Rad<f32>,
+    zoom: f32,
     aspect: f32,
     mouse_pos: Vector2<i32>,
     is_lmb_pressed: bool,
@@ -129,6 +130,7 @@ impl Visualizer {
             texture: texture,
             camera_angle_x: Rad::new(0.0),
             camera_angle_y: Rad::new(0.0),
+            zoom: 5.0,
             aspect: aspect,
             mouse_pos: Vector2{x: 0, y: 0},
             is_lmb_pressed: false,
@@ -162,6 +164,8 @@ impl Visualizer {
                         glutin::VirtualKeyCode::Left => self.camera_angle_x.s -= rotate_step,
                         glutin::VirtualKeyCode::Down => self.camera_angle_y.s += rotate_step,
                         glutin::VirtualKeyCode::Up => self.camera_angle_y.s -= rotate_step,
+                        glutin::VirtualKeyCode::Equals => self.zoom *= 0.75,
+                        glutin::VirtualKeyCode::Subtract => self.zoom *= 1.25,
                         _ => {},
                     }
                 },
@@ -210,7 +214,7 @@ impl Visualizer {
         let model_pos = Vector3{x: 1.0, y: 0.0, z: 0.0};
         let model_mat: [[f32; 4]; 4] = Matrix4::from_translation(model_pos).into();
         let view_mat: [[f32; 4]; 4] = view_matrix(
-            self.camera_angle_x, self.camera_angle_y, self.aspect).into();
+            self.camera_angle_x, self.camera_angle_y, self.zoom, self.aspect).into();
         let uniforms = uniform! {
             view_mat: view_mat,
             model_mat: model_mat,
