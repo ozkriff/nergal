@@ -9,6 +9,7 @@ keywords = ["opengl", "3D", "game"]
 readme = "README.md"
 
 [dependencies]
+rand = "*"
 glium = "*"
 time = "*"
 cgmath = "*"

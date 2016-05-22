@@ -6,16 +6,19 @@ extern crate glium;
 extern crate time;
 extern crate image;
 extern crate cgmath;
+extern crate rand;
 
 #[cfg(target_os = "android")]
 extern crate android_glue;
 
 mod fs;
+mod md5;
 
 use std::path::{Path};
 use std::f32::consts::{PI};
 use std::thread;
 use std::time::Duration;
+use rand::{thread_rng, Rng};
 use glium::{glutin, Texture2d, DisplayBuild, Surface};
 use glium::index::PrimitiveType;
 use glium::glutin::ElementState::{Pressed, Released};
@@ -23,8 +26,8 @@ use cgmath::{Matrix4, Matrix3, Vector3, Vector2, Rad};
 
 const FPS: u64 = 60;
 
-#[derive(Copy, Clone)]
-struct Vertex {
+#[derive(Debug, Copy, Clone)]
+pub struct Vertex {
     position: [f32; 3],
     tex_coords: [f32; 2],
 }
@@ -60,6 +63,17 @@ fn view_matrix(angle_x: Rad<f32>, angle_y: Rad<f32>, zoom: f32, aspect: f32) -> 
     perspective_mat * tr_mat * angle_y_m * angle_x_m
 }
 
+fn draw_parameters() -> glium::DrawParameters<'static> {
+    glium::DrawParameters {
+        depth: glium::Depth {
+            test: glium::draw_parameters::DepthTest::IfLess,
+            write: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
 fn win_size(display: &glium::Display) -> (u32, u32) {
     let window = display.get_window().unwrap();
     window.get_inner_size().unwrap()
@@ -83,21 +97,55 @@ fn create_display() -> glium::Display {
         .unwrap()
 }
 
+// TODO: это все надо как-то более человечно сделать и названия нормальные дать
+struct MeshRenderInfo {
+    vertex_buffer: glium::VertexBuffer<Vertex>,
+    index_buffer: glium::IndexBuffer<u16>,
+    texture: Texture2d,
+}
+
+fn prepare_mesh(mesh: &md5::Mesh, display: &glium::Display) -> MeshRenderInfo {
+    let prim_type = PrimitiveType::TrianglesList;
+    let index_buffer = glium::IndexBuffer::new(
+        display, prim_type, mesh.indices()).unwrap();
+    let vertex_buffer = glium::VertexBuffer::new(
+        display, mesh.vertices()).unwrap();
+    let texture = load_texture(display, mesh.shader());
+    MeshRenderInfo {
+        vertex_buffer: vertex_buffer,
+        index_buffer: index_buffer,
+        texture: texture,
+    }
+}
+
+fn prepare_model(model: &md5::Model, display: &glium::Display) -> Vec<MeshRenderInfo> {
+    let mut v = Vec::new();
+    for mesh in model.meshes() {
+        v.push(prepare_mesh(mesh, display));
+    }
+    v
+}
+
+struct A {
+    frame: usize,
+    anim: md5::Anim,
+}
+
 struct Visualizer {
     display: glium::Display,
     program: glium::Program,
     is_running: bool,
     accumulator: u64,
     previous_clock: u64,
-    vertex_buffer: glium::VertexBuffer<Vertex>,
-    index_buffer: glium::IndexBuffer<u16>,
-    texture: Texture2d,
     camera_angle_x: Rad<f32>,
     camera_angle_y: Rad<f32>,
     zoom: f32,
     aspect: f32,
     mouse_pos: Vector2<i32>,
     is_lmb_pressed: bool,
+    model: md5::Model,
+    model_render_infos: Vec<MeshRenderInfo>,
+    a: Vec<A>,
 }
 
 impl Visualizer {
@@ -105,18 +153,16 @@ impl Visualizer {
         let display = create_display();
         let program = make_program(&display);
         let aspect = aspect(&display);
-        let vertex_buffer = {
-            let vertices = [
-                Vertex { position: [-0.5, -0.5, 0.0], tex_coords: [0.0, 1.0] },
-                Vertex { position: [-0.5,  0.5, 0.0], tex_coords: [0.0, 0.0] },
-                Vertex { position: [ 0.5, -0.5, 0.0], tex_coords: [1.0, 1.0] },
-                Vertex { position: [ 0.5,  0.5, 0.0], tex_coords: [1.0, 0.0] },
-            ];
-            glium::VertexBuffer::new(&display, &vertices).unwrap()
-        };
-        let index_buffer = glium::IndexBuffer::new(
-            &display, PrimitiveType::TrianglesList, &[0u16, 1, 2, 1, 2, 3]).unwrap();
-        let texture = load_texture(&display, "test.png");
+        let model = md5::load_model("simpleMan2.6.md5mesh");
+        let model_render_infos = prepare_model(&model, &display);
+        let mut a = Vec::new();
+        for _ in 0..16 {
+            let anim = md5::load_anim("simpleMan2.6.md5anim");
+            a.push(A {
+                frame: thread_rng().gen_range(0, anim.len()),
+                anim: anim,
+            });
+        }
         let accumulator = 0;
         let previous_clock = time::precise_time_ns();
         Visualizer {
@@ -125,15 +171,15 @@ impl Visualizer {
             is_running: true,
             accumulator: accumulator,
             previous_clock: previous_clock,
-            vertex_buffer: vertex_buffer,
-            index_buffer: index_buffer,
-            texture: texture,
-            camera_angle_x: Rad::new(0.0),
-            camera_angle_y: Rad::new(0.0),
+            camera_angle_x: Rad::new(-PI / 6.0),
+            camera_angle_y: Rad::new(-PI / 2.0 + PI / 6.0),
             zoom: 5.0,
             aspect: aspect,
             mouse_pos: Vector2{x: 0, y: 0},
             is_lmb_pressed: false,
+            model: model,
+            model_render_infos: model_render_infos,
+            a: a,
         }
     }
 
@@ -210,26 +256,59 @@ impl Visualizer {
         }
     }
 
-    fn draw(&self) {
-        let model_pos = Vector3{x: 1.0, y: 0.0, z: 0.0};
-        let model_mat: [[f32; 4]; 4] = Matrix4::from_translation(model_pos).into();
+    fn draw_model_at(&self, target: &mut glium::Frame, model_mat: [[f32; 4]; 4]) {
         let view_mat: [[f32; 4]; 4] = view_matrix(
-            self.camera_angle_x, self.camera_angle_y, self.zoom, self.aspect).into();
-        let uniforms = uniform! {
-            view_mat: view_mat,
-            model_mat: model_mat,
-            texture: &self.texture,
-        };
+            self.camera_angle_x,
+            self.camera_angle_y,
+            self.zoom,
+            self.aspect,
+        ).into();
+        for ri in &self.model_render_infos {
+            let uniforms = uniform! {
+                view_mat: view_mat,
+                model_mat: model_mat,
+                tex: &ri.texture,
+            };
+            target.draw(
+                &ri.vertex_buffer,
+                &ri.index_buffer,
+                &self.program,
+                &uniforms,
+                &draw_parameters(),
+            ).unwrap();
+        }
+    }
+
+    fn draw(&mut self) {
         let mut target = self.display.draw();
-        target.clear_color(0.0, 0.0, 0.0, 0.0);
-        target.draw(
-            &self.vertex_buffer,
-            &self.index_buffer,
-            &self.program,
-            &uniforms,
-            &Default::default(),
-        ).unwrap();
+        target.clear_color_and_depth((0.0, 0.0, 0.0, 0.0), 1.0);
+        for x in 0..4 {
+            for y in 0..4 {
+                {
+                    let a = &mut self.a[y * 4 + x];
+                    self.model.compute(a.anim.joints());
+                    for (i, ri) in self.model_render_infos.iter_mut().enumerate() {
+                        let vertices = self.model.meshes()[i].vertices();
+                        ri.vertex_buffer = glium::VertexBuffer::new(
+                            &self.display, vertices).unwrap();
+                    }
+                }
+                let t = Vector3{x: x as f32 * 2.0, y: y as f32 * 2.0, z: 0.0};
+                let m = Matrix4::from_translation(t).into();
+                self.draw_model_at(&mut target, m);
+            }
+        }
         target.finish().unwrap();
+    }
+
+    fn update_anim(&mut self) {
+        for a in &mut self.a {
+            a.anim.set_frame(a.frame);
+            a.frame += 1;
+            if a.frame == a.anim.len() {
+                a.frame = 0;
+            }
+        }
     }
 
     fn update_timer(&mut self) {
@@ -251,6 +330,7 @@ fn main() {
     let mut visualizer = Visualizer::new();
     while visualizer.is_running() {
         visualizer.draw();
+        visualizer.update_anim();
         visualizer.handle_events();
         visualizer.update_timer();
     }
