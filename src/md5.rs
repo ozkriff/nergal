@@ -9,8 +9,8 @@ use fs;
 use ::Vertex;
 
 #[derive(Debug, Clone)]
-struct VertexWeight {
-    weight_index: usize,
+struct VertexWeightIndices {
+    first_weight_index: usize,
     weight_count: usize,
 }
 
@@ -27,10 +27,8 @@ pub struct Mesh {
     vertices: Vec<Vertex>,
     indices: Vec<u16>,
     max_joints_per_vert: usize,
-
-    // TODO: гм, названия-с слишком похожи (с vertex_weights)
     weights: Vec<Weight>,
-    vertex_weights: Vec<VertexWeight>,
+    vertex_weight_indices: Vec<VertexWeightIndices>,
 }
 
 impl Mesh {
@@ -49,10 +47,10 @@ impl Mesh {
     /// Compute real points from bones data.
     fn calc_points(&mut self, joints: &[Joint]) {
         for i in 0..self.vertices.len() {
-            let current_vertex = &self.vertex_weights[i];
+            let current_vertex = &self.vertex_weight_indices[i];
             let mut p = Vector3{x: 0.0, y: 0.0, z: 0.0};
             for k in 0..current_vertex.weight_count {
-                let w = &self.weights[current_vertex.weight_index + k];
+                let w = &self.weights[current_vertex.first_weight_index + k];
                 let j = &joints[w.joint_index];
                 p += j.transform(&w.position) * w.weight;
             }
@@ -206,7 +204,7 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
     let mut m = Mesh {
         indices: Vec::new(),
         vertices: Vec::new(),
-        vertex_weights: Vec::new(),
+        vertex_weight_indices: Vec::new(),
         weights: Vec::new(),
         shader: "".into(),
         max_joints_per_vert: 0,
@@ -216,18 +214,11 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
         let mut words = line.split_whitespace();
         if let Some(tag) = words.next() {
             if tag == "}" {
-                // Calculate max joints per vertex
-                for i in 0..m.vertices.len() {
-                    if m.vertex_weights[i].weight_count > m.max_joints_per_vert {
-                        m.max_joints_per_vert = m.vertex_weights[i].weight_count;
-                    }
-                }
                 break;
             }
             if tag == "numverts" {
                 let num_vertices = parse_word(&mut words);
                 m.vertices.reserve(num_vertices);
-                // m.points.reserve(num_vertices);
             }
             if tag == "numtris" {
                 let num_tris: usize = parse_word(&mut words);
@@ -247,14 +238,14 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
                 expect_word(&mut words, ")");
                 m.vertices.push(Vertex {
                     tex_coords: tex_coords.into(),
-                    position: [0.0, 0.0, 0.0], // базовое значение
+                    position: [0.0, 0.0, 0.0],
                 });
                 assert_eq!(m.vertices.len() - 1, index);
-                m.vertex_weights.push(VertexWeight {
-                    weight_index: parse_word(&mut words),
+                m.vertex_weight_indices.push(VertexWeightIndices {
+                    first_weight_index: parse_word(&mut words),
                     weight_count: parse_word(&mut words),
                 });
-                assert_eq!(m.vertex_weights.len() - 1, index);
+                assert_eq!(m.vertex_weight_indices.len() - 1, index);
             }
             if tag == "weight" {
                 let index: usize = parse_word(&mut words);
@@ -286,10 +277,14 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
             }
         }
     }
+    for wi in &m.vertex_weight_indices {
+        if wi.weight_count > m.max_joints_per_vert {
+            m.max_joints_per_vert = wi.weight_count;
+        }
+    }
     m
 }
 
-// костылище
 fn compute_quat_w(v: Vector3<f32>) -> Quaternion<f32> {
     let t = 1.0 - (v.x * v.x) - (v.y * v.y) - (v.z * v.z);
     let w = if t < 0.0 {
@@ -363,8 +358,8 @@ pub fn load_model<P: AsRef<Path>>(path: P) -> Model {
         let mut words = line.split_whitespace();
         if let Some(tag) = words.next() {
             if tag == "numJoints" {
-                // let num_joints: usize = parse_word(&mut words);
-                // m.joints = ALLOCATE(m.num_joints, Joint);
+                let num_joints = parse_word(&mut words);
+                model.joints.reserve(num_joints);
             }
             if tag == "numMeshes" {
                 let num_meshes = parse_word(&mut words);
@@ -384,11 +379,8 @@ pub fn load_model<P: AsRef<Path>>(path: P) -> Model {
             // }
         }
     }
-    {
-        // тестовый вариант, просто ставим в Т-позу
-        for i in 0..model.meshes.len() {
-            model.meshes[i].calc_points(&model.joints);
-        }
+    for mesh in &mut model.meshes {
+        mesh.calc_points(&model.joints); // T-pose
     }
     model
 }
@@ -401,7 +393,7 @@ fn load_hierarchy(buf: &mut BufRead) -> Vec<HierarchyItem> {
             break;
         }
         let mut words = line.split_whitespace();
-        let name: String = words.next().unwrap().trim_matches('"').into(); // костыль
+        let name: String = words.next().unwrap().trim_matches('"').into();
         let parent: isize = parse_word(&mut words);
         let flags: i32 = parse_word(&mut words);
         let start_index: usize = parse_word(&mut words);
@@ -454,7 +446,6 @@ fn load_frame(buf: &mut BufRead, num_animated_components: usize) -> Vec<f32> {
             break;
         }
         let mut words = line.split_whitespace();
-        // TODO: Vector3<f32> position, rot;
         frame.push(parse_word(&mut words));
         frame.push(parse_word(&mut words));
         frame.push(parse_word(&mut words));
@@ -501,7 +492,7 @@ pub fn load_anim<P: AsRef<Path>>(path: P) -> Anim {
             }
             if tag == "bounds" {
                 expect_word(&mut words, "{");
-                // load_bounds(f, a); // мне оно нужно?
+                // not implemented
             }
             if tag == "baseframe" {
                 expect_word(&mut words, "{");
