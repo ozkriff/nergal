@@ -136,11 +136,6 @@ fn prepare_model(model: &md5::Model, display: &Display) -> Vec<MeshRenderInfo> {
     v
 }
 
-struct A {
-    frame: usize,
-    anim: md5::Anim,
-}
-
 struct Visualizer {
     display: Display,
     program: glium::Program,
@@ -155,7 +150,7 @@ struct Visualizer {
     is_lmb_pressed: bool,
     model: md5::Model,
     model_render_infos: Vec<MeshRenderInfo>,
-    a: Vec<A>,
+    animations: Vec<md5::Anim>,
 }
 
 impl Visualizer {
@@ -165,13 +160,12 @@ impl Visualizer {
         let aspect = aspect(&display);
         let model = md5::load_model("simpleMan2.6.md5mesh");
         let model_render_infos = prepare_model(&model, &display);
-        let mut a = Vec::new();
+        let mut animations = Vec::new();
         for _ in 0..N*N {
-            let anim = md5::load_anim("simpleMan2.6.md5anim");
-            a.push(A {
-                frame: thread_rng().gen_range(0, anim.len()),
-                anim: anim,
-            });
+            let mut anim = md5::load_anim("simpleMan2.6.md5anim");
+            let frame = thread_rng().gen_range(0, anim.len());
+            anim.set_frame(frame);
+            animations.push(anim);
         }
         let accumulator = 0;
         let previous_clock = time::precise_time_ns();
@@ -189,7 +183,7 @@ impl Visualizer {
             is_lmb_pressed: false,
             model: model,
             model_render_infos: model_render_infos,
-            a: a,
+            animations: animations,
         }
     }
 
@@ -294,7 +288,7 @@ impl Visualizer {
         target.clear_color_and_depth((0.0, 0.0, 0.0, 0.0), 1.0);
         for x in 0..N {
             for y in 0..N {
-                self.model.compute(self.a[y * N + x].anim.joints());
+                self.model.compute(self.animations[y * N + x].joints());
                 for (i, ri) in self.model_render_infos.iter_mut().enumerate() {
                     let vertex_positions = self.model.meshes()[i].vertex_positions();
                     ri.vertex_positions_buffer = VertexBuffer::new(
@@ -313,12 +307,10 @@ impl Visualizer {
     }
 
     fn update_anim(&mut self) {
-        for a in &mut self.a {
-            a.anim.set_frame(a.frame);
-            a.frame += 1;
-            if a.frame == a.anim.len() {
-                a.frame = 0;
-            }
+        for anim in &mut self.animations {
+            let frame = anim.frame();
+            let next_frame = anim.next_frame(frame);
+            anim.set_frame(next_frame);
         }
     }
 

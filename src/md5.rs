@@ -155,6 +155,18 @@ impl Anim {
         }
     }
 
+    pub fn next_frame(&self, frame: usize) -> usize {
+        let mut f = frame + 1;
+        if f >= self.len() {
+            f = 0;
+        }
+        f
+    }
+
+    pub fn frame(&self) -> usize {
+        self.frame
+    }
+
     pub fn set_frame(&mut self, n: usize) {
         assert!(n < self.frames.len());
         self.frame = n;
