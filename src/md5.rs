@@ -6,7 +6,7 @@ use std::path::{Path};
 use std::str::{SplitWhitespace, FromStr};
 use cgmath::{Vector2, Vector3, Quaternion, Rotation};
 use fs;
-use ::Vertex;
+use ::{VertexPos, VertexTexCoords};
 
 #[derive(Debug, Clone)]
 struct VertexWeightIndices {
@@ -24,7 +24,8 @@ struct Weight {
 #[derive(Debug)]
 pub struct Mesh {
     shader: String,
-    vertices: Vec<Vertex>,
+    vertex_positions: Vec<VertexPos>,
+    vertex_tex_coords: Vec<VertexTexCoords>,
     indices: Vec<u16>,
     max_joints_per_vert: usize,
     weights: Vec<Weight>,
@@ -36,8 +37,12 @@ impl Mesh {
         &self.shader
     }
 
-    pub fn vertices(&self) -> &[Vertex] {
-        &self.vertices
+    pub fn vertex_positions(&self) -> &[VertexPos] {
+        &self.vertex_positions
+    }
+
+    pub fn vertex_tex_coords(&self) -> &[VertexTexCoords] {
+        &self.vertex_tex_coords
     }
 
     pub fn indices(&self) -> &[u16] {
@@ -46,7 +51,7 @@ impl Mesh {
 
     /// Compute real points from bones data.
     fn calc_points(&mut self, joints: &[Joint]) {
-        for i in 0..self.vertices.len() {
+        for i in 0..self.vertex_positions.len() {
             let current_vertex = &self.vertex_weight_indices[i];
             let mut p = Vector3{x: 0.0, y: 0.0, z: 0.0};
             for k in 0..current_vertex.weight_count {
@@ -54,7 +59,7 @@ impl Mesh {
                 let j = &joints[w.joint_index];
                 p += j.transform(&w.position) * w.weight;
             }
-            self.vertices[i].position = p.into();
+            self.vertex_positions[i].position = p.into();
         }
     }
 }
@@ -204,7 +209,8 @@ fn expect_word(words: &mut SplitWhitespace, expected: &str) {
 fn read_mesh(buf: &mut BufRead) -> Mesh {
     let mut m = Mesh {
         indices: Vec::new(),
-        vertices: Vec::new(),
+        vertex_positions: Vec::new(),
+        vertex_tex_coords: Vec::new(),
         vertex_weight_indices: Vec::new(),
         weights: Vec::new(),
         shader: "".into(),
@@ -219,7 +225,7 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
             }
             if tag == "numverts" {
                 let num_vertices = parse_word(&mut words);
-                m.vertices.reserve(num_vertices);
+                m.vertex_positions.reserve(num_vertices);
             }
             if tag == "numtris" {
                 let num_tris: usize = parse_word(&mut words);
@@ -237,11 +243,9 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
                     y: parse_word(&mut words),
                 };
                 expect_word(&mut words, ")");
-                m.vertices.push(Vertex {
-                    tex_coords: tex_coords.into(),
-                    position: [0.0, 0.0, 0.0],
-                });
-                assert_eq!(m.vertices.len() - 1, index);
+                m.vertex_tex_coords.push(VertexTexCoords{tex_coords: tex_coords.into()});
+                m.vertex_positions.push(VertexPos{position: [0.0, 0.0, 0.0]});
+                assert_eq!(m.vertex_positions.len() - 1, index);
                 m.vertex_weight_indices.push(VertexWeightIndices {
                     first_weight_index: parse_word(&mut words),
                     weight_count: parse_word(&mut words),

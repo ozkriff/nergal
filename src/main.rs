@@ -25,14 +25,20 @@ use glium::glutin::ElementState::{Pressed, Released};
 use cgmath::{Matrix4, Matrix3, Vector3, Vector2, Rad};
 
 const FPS: u64 = 60;
+const N: usize = 5;
 
 #[derive(Debug, Copy, Clone)]
-pub struct Vertex {
+pub struct VertexPos {
     position: [f32; 3],
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct VertexTexCoords {
     tex_coords: [f32; 2],
 }
 
-implement_vertex!(Vertex, position, tex_coords);
+implement_vertex!(VertexPos, position);
+implement_vertex!(VertexTexCoords, tex_coords);
 
 fn load_texture<P: AsRef<Path>>(display: &glium::Display, path: P) -> Texture2d {
     let f = fs::load(path);
@@ -99,7 +105,8 @@ fn create_display() -> glium::Display {
 
 // TODO: это все надо как-то более человечно сделать и названия нормальные дать
 struct MeshRenderInfo {
-    vertex_buffer: glium::VertexBuffer<Vertex>,
+    vertex_positions_buffer: glium::VertexBuffer<VertexPos>,
+    vertex_tex_coords_buffer: glium::VertexBuffer<VertexTexCoords>,
     index_buffer: glium::IndexBuffer<u16>,
     texture: Texture2d,
 }
@@ -108,11 +115,14 @@ fn prepare_mesh(mesh: &md5::Mesh, display: &glium::Display) -> MeshRenderInfo {
     let prim_type = PrimitiveType::TrianglesList;
     let index_buffer = glium::IndexBuffer::new(
         display, prim_type, mesh.indices()).unwrap();
-    let vertex_buffer = glium::VertexBuffer::new(
-        display, mesh.vertices()).unwrap();
+    let vertex_positions_buffer = glium::VertexBuffer::new(
+        display, mesh.vertex_positions()).unwrap();
+    let vertex_tex_coords_buffer = glium::VertexBuffer::new(
+        display, mesh.vertex_tex_coords()).unwrap();
     let texture = load_texture(display, mesh.shader());
     MeshRenderInfo {
-        vertex_buffer: vertex_buffer,
+        vertex_positions_buffer: vertex_positions_buffer,
+        vertex_tex_coords_buffer: vertex_tex_coords_buffer,
         index_buffer: index_buffer,
         texture: texture,
     }
@@ -156,7 +166,7 @@ impl Visualizer {
         let model = md5::load_model("simpleMan2.6.md5mesh");
         let model_render_infos = prepare_model(&model, &display);
         let mut a = Vec::new();
-        for _ in 0..16 {
+        for _ in 0..N*N {
             let anim = md5::load_anim("simpleMan2.6.md5anim");
             a.push(A {
                 frame: thread_rng().gen_range(0, anim.len()),
@@ -173,7 +183,7 @@ impl Visualizer {
             previous_clock: previous_clock,
             camera_angle_x: Rad::new(PI / 6.0),
             camera_angle_y: Rad::new(-PI / 2.0 + PI / 8.0),
-            zoom: 10.0,
+            zoom: 20.0,
             aspect: aspect,
             mouse_pos: Vector2{x: 0, y: 0},
             is_lmb_pressed: false,
@@ -270,7 +280,7 @@ impl Visualizer {
                 tex: &ri.texture,
             };
             target.draw(
-                &ri.vertex_buffer,
+                (&ri.vertex_positions_buffer, &ri.vertex_tex_coords_buffer),
                 &ri.index_buffer,
                 &self.program,
                 &uniforms,
@@ -282,18 +292,19 @@ impl Visualizer {
     fn draw(&mut self) {
         let mut target = self.display.draw();
         target.clear_color_and_depth((0.0, 0.0, 0.0, 0.0), 1.0);
-        for x in 0..4 {
-            for y in 0..4 {
-                {
-                    let a = &mut self.a[y * 4 + x];
-                    self.model.compute(a.anim.joints());
-                    for (i, ri) in self.model_render_infos.iter_mut().enumerate() {
-                        let vertices = self.model.meshes()[i].vertices();
-                        ri.vertex_buffer = glium::VertexBuffer::new(
-                            &self.display, vertices).unwrap();
-                    }
+        for x in 0..N {
+            for y in 0..N {
+                self.model.compute(self.a[y * N + x].anim.joints());
+                for (i, ri) in self.model_render_infos.iter_mut().enumerate() {
+                    let vertex_positions = self.model.meshes()[i].vertex_positions();
+                    ri.vertex_positions_buffer = glium::VertexBuffer::new(
+                        &self.display, vertex_positions).unwrap();
                 }
-                let t = Vector3{x: x as f32 * 2.0, y: y as f32 * 2.0, z: 0.0};
+                let t = Vector3 {
+                    x: x as f32 * 2.0 - N as f32,
+                    y: y as f32 * 2.0 - N as f32,
+                    z: 0.0,
+                };
                 let m = Matrix4::from_translation(t).into();
                 self.draw_model_at(&mut target, m);
             }
