@@ -446,10 +446,8 @@ fn load_base_frame(buf: &mut BufRead) -> Vec<BaseFrameJoint> {
     frame
 }
 
-// наверное, надо не принимать Anim, а возвращать вектор кадра
-fn load_frame(buf: &mut BufRead) -> Vec<f32> {
-    let mut frame = Vec::new();
-    // anim.frames[n] = ALLOCATE(anim.num_animated_components, float); // TODO можно бы резервировать сразу
+fn load_frame(buf: &mut BufRead, num_animated_components: usize) -> Vec<f32> {
+    let mut frame = Vec::with_capacity(num_animated_components);
     for line in buf.lines() {
         let line = line.unwrap();
         if line.trim() == "}" {
@@ -512,8 +510,8 @@ pub fn load_anim<P: AsRef<Path>>(path: P) -> Anim {
             if tag == "frame" {
                 let index: usize = parse_word(&mut words);
                 expect_word(&mut words, "{");
-                let frame = load_frame(&mut buf);
-                anim.frames.push(frame);
+                anim.frames.push(load_frame(
+                    &mut buf, anim.num_animated_components));
                 assert_eq!(anim.frames.len() - 1, index);
             }
         }
