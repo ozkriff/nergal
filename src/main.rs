@@ -207,10 +207,13 @@ impl Visualizer {
     }
 
     fn draw(&self) {
+        let model_pos = Vector3{x: 1.0, y: 0.0, z: 0.0};
+        let model_mat: [[f32; 4]; 4] = Matrix4::from_translation(model_pos).into();
         let view_mat: [[f32; 4]; 4] = view_matrix(
             self.camera_angle_x, self.camera_angle_y, self.aspect).into();
         let uniforms = uniform! {
             view_mat: view_mat,
+            model_mat: model_mat,
             texture: &self.texture,
         };
         let mut target = self.display.draw();
