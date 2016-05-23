@@ -299,7 +299,7 @@ impl Visualizer {
         target.clear_color_and_depth((0.0, 0.0, 0.0, 0.0), 1.0);
         for x in 0..N {
             for y in 0..N {
-                self.model.compute(self.animations[y * N + x].joints());
+                self.model.update_vertex_positions(self.animations[y * N + x].joints());
                 for (i, mesh) in self.gpu_model.gpu_meshes.iter_mut().enumerate() {
                     let vertex_positions = self.model.meshes()[i].vertex_positions();
                     mesh.vertex_pos_buffer = VertexBuffer::new(

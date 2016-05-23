@@ -49,8 +49,7 @@ impl Mesh {
         &self.indices
     }
 
-    /// Compute real points from bones data.
-    fn calc_points(&mut self, joints: &[Joint]) {
+    fn update_vertex_positions(&mut self, joints: &[Joint]) {
         for i in 0..self.vertex_positions.len() {
             let current_vertex = &self.vertex_weight_indices[i];
             let mut p = Vector3{x: 0.0, y: 0.0, z: 0.0};
@@ -89,9 +88,9 @@ impl Model {
         &self.meshes
     }
 
-    pub fn compute(&mut self, joints: &[Joint]) {
+    pub fn update_vertex_positions(&mut self, joints: &[Joint]) {
         for mesh in &mut self.meshes {
-            mesh.calc_points(joints);
+            mesh.update_vertex_positions(joints);
         }
     }
 }
@@ -397,7 +396,7 @@ pub fn load_model<P: AsRef<Path>>(path: P) -> Model {
         }
     }
     for mesh in &mut model.meshes {
-        mesh.calc_points(&model.joints); // T-pose
+        mesh.update_vertex_positions(&model.joints); // T-pose
     }
     model
 }
