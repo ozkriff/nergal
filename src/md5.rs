@@ -135,11 +135,12 @@ pub struct Anim {
     num_animated_components: usize,
     frame: usize,
     frame_rate: usize,
+    time: f32,
 }
 
 impl Anim {
-    pub fn len(&self) -> usize {
-        self.frames.len()
+    pub fn len(&self) -> f32 {
+        self.frames.len() as f32 / self.frame_rate as f32
     }
 
     pub fn joints(&self) -> &[Joint] {
@@ -155,6 +156,7 @@ impl Anim {
         }
     }
 
+    // TODO: replace 'joint' with 'bone' everywhere
     fn build_joints(&mut self) {
         for i in 0..self.joints.len() {
             if let Some(parent_index) = self.joints[i].parent_index {
@@ -166,20 +168,17 @@ impl Anim {
         }
     }
 
-    pub fn next_frame(&self, frame: usize) -> usize {
-        let mut f = frame + 1;
-        if f >= self.len() {
-            f = 0;
+    pub fn set_time(&mut self, time: f32) {
+        self.time = time;
+        self.update(0.0);
+    }
+
+    pub fn update(&mut self, dt: f32) {
+        self.time += dt;
+        let mut n = (self.time * self.frame_rate as f32) as usize;
+        while n >= self.frames.len() {
+            n -= self.frames.len();
         }
-        f
-    }
-
-    pub fn frame(&self) -> usize {
-        self.frame
-    }
-
-    pub fn set_frame(&mut self, n: usize) {
-        assert!(n < self.frames.len());
         self.frame = n;
         self.reset_joints();
         for i in 0..self.joints.len() {
@@ -508,6 +507,7 @@ fn load_frame(buf: &mut BufRead, num_animated_components: usize) -> Vec<f32> {
     frame
 }
 
+// TODO: fn new(...) -> Anim {...
 pub fn load_anim<P: AsRef<Path>>(path: P) -> Anim {
     let mut buf = fs::load(path);
     let mut anim = Anim {
@@ -518,6 +518,7 @@ pub fn load_anim<P: AsRef<Path>>(path: P) -> Anim {
         num_animated_components: 0,
         frame: 0,
         frame_rate: 0,
+        time: 0.0,
     };
     let mut num_joints = 0;
     while let Some(line) = read_line(&mut buf) {

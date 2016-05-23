@@ -16,8 +16,6 @@ mod md5;
 
 use std::path::{Path};
 use std::f32::consts::{PI};
-use std::thread;
-use std::time::Duration;
 use rand::{thread_rng, Rng};
 use glium::{glutin, Texture2d, DisplayBuild, Surface, VertexBuffer, IndexBuffer, Display};
 use glium::index::PrimitiveType;
@@ -25,7 +23,6 @@ use glium::glutin::ElementState::{Pressed, Released};
 use cgmath::{Matrix4, Matrix3, Vector3, Vector2, Rad};
 use md5::{VertexPos, VertexUV};
 
-const FPS: u64 = 60;
 const N: usize = 5;
 
 implement_vertex!(VertexPos, position);
@@ -140,7 +137,6 @@ struct Visualizer {
     display: Display,
     program: glium::Program,
     is_running: bool,
-    accumulator: u64,
     previous_clock: u64,
     camera_angle_x: Rad<f32>,
     camera_angle_y: Rad<f32>,
@@ -163,17 +159,15 @@ impl Visualizer {
         let mut animations = Vec::new();
         for _ in 0..N*N {
             let mut anim = md5::load_anim("simpleMan2.6.md5anim");
-            let frame = thread_rng().gen_range(0, anim.len());
-            anim.set_frame(frame);
+            let time = thread_rng().gen_range(0.0, anim.len());
+            anim.set_time(time);
             animations.push(anim);
         }
-        let accumulator = 0;
         let previous_clock = time::precise_time_ns();
         Visualizer {
             display: display,
             program: program,
             is_running: true,
-            accumulator: accumulator,
             previous_clock: previous_clock,
             camera_angle_x: Rad::new(PI / 6.0),
             camera_angle_y: Rad::new(-PI / 2.0 + PI / 8.0),
@@ -308,25 +302,17 @@ impl Visualizer {
         target.finish().unwrap();
     }
 
-    fn update_anim(&mut self) {
+    fn update_anim(&mut self, dt: f32) {
         for anim in &mut self.animations {
-            let frame = anim.frame();
-            let next_frame = anim.next_frame(frame);
-            anim.set_frame(next_frame);
+            anim.update(dt);
         }
     }
 
-    fn update_timer(&mut self) {
-        let fixed_time_stamp = 1_000_000_000 / FPS;
+    fn update_timer(&mut self) -> f32 {
         let now = time::precise_time_ns();
-        self.accumulator += now - self.previous_clock;
+        let diff = now - self.previous_clock;
         self.previous_clock = now;
-        while self.accumulator >= fixed_time_stamp {
-            self.accumulator -= fixed_time_stamp;
-            // TODO: update realtime state here
-        }
-        let remainder_ms = (fixed_time_stamp - self.accumulator) / 1_000_000;
-        thread::sleep(Duration::from_millis(remainder_ms));
+        diff as f32 / 1_000_000_000.0
     }
 }
 
@@ -334,10 +320,10 @@ fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
     let mut visualizer = Visualizer::new();
     while visualizer.is_running() {
+        let dt = visualizer.update_timer();
         visualizer.draw();
-        visualizer.update_anim();
+        visualizer.update_anim(dt);
         visualizer.handle_events();
-        visualizer.update_timer();
     }
 }
 
