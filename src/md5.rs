@@ -6,7 +6,6 @@ use std::path::{Path, PathBuf};
 use std::str::{SplitWhitespace, FromStr};
 use cgmath::{Vector3, Quaternion, Rotation};
 use fs;
-use ::{VertexPos, VertexUV};
 
 const BIT_POS_X: i32 = 1;
 const BIT_POS_Y: i32 = 2;
@@ -14,6 +13,17 @@ const BIT_POS_Z: i32 = 4;
 const BIT_QUAT_X: i32 = 8;
 const BIT_QUAT_Y: i32 = 16;
 const BIT_QUAT_Z: i32 = 32;
+
+#[derive(Debug, Copy, Clone)]
+pub struct VertexPos {
+    pub position: [f32; 3],
+}
+
+// Separate from VertexPos because we don't need to update UV every frame
+#[derive(Debug, Copy, Clone)]
+pub struct VertexUV {
+    pub uv: [f32; 2],
+}
 
 #[derive(Debug, Copy, Clone)]
 struct VertexWeightIndices {

@@ -23,19 +23,10 @@ use glium::{glutin, Texture2d, DisplayBuild, Surface, VertexBuffer, IndexBuffer,
 use glium::index::PrimitiveType;
 use glium::glutin::ElementState::{Pressed, Released};
 use cgmath::{Matrix4, Matrix3, Vector3, Vector2, Rad};
+use md5::{VertexPos, VertexUV};
 
 const FPS: u64 = 60;
 const N: usize = 5;
-
-#[derive(Debug, Copy, Clone)]
-pub struct VertexPos {
-    position: [f32; 3],
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct VertexUV {
-    uv: [f32; 2],
-}
 
 implement_vertex!(VertexPos, position);
 implement_vertex!(VertexUV, uv);
