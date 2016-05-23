@@ -374,14 +374,9 @@ fn load_joints(buf: &mut BufRead) -> Vec<Joint> {
 
 fn read_line(buf: &mut BufRead) -> Option<String> {
     let mut line = "".into();
-    if let Ok(bytes) = buf.read_line(&mut line) {
-        if bytes == 0 {
-            None
-        } else {
-            Some(line)
-        }
-    } else {
-        None
+    match buf.read_line(&mut line) {
+        Ok(0) | Err(_) => None,
+        Ok(_) => Some(line),
     }
 }
 
