@@ -23,7 +23,7 @@ struct Weight {
 
 #[derive(Debug)]
 pub struct Mesh {
-    shader: String,
+    texture_name: String, // TODO: String -> Path
     vertex_positions: Vec<VertexPos>,
     vertex_uvs: Vec<VertexUV>,
     indices: Vec<u16>,
@@ -33,8 +33,8 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn shader(&self) -> &str {
-        &self.shader
+    pub fn texture_name(&self) -> &str {
+        &self.texture_name
     }
 
     pub fn vertex_positions(&self) -> &[VertexPos] {
@@ -225,7 +225,7 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
         vertex_uvs: Vec::new(),
         vertex_weight_indices: Vec::new(),
         weights: Vec::new(),
-        shader: "".into(),
+        texture_name: "".into(),
         max_joints_per_vert: 0,
     };
     for line in buf.lines() {
@@ -289,8 +289,8 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
                 assert_eq!(m.indices.len() - 3, index * 3);
             }
             if tag == "shader" {
-                m.shader = words.next().unwrap().trim_matches('"').replace("data/", "");
-                m.shader = format!("{}.png", m.shader);
+                let texture_name = words.next().unwrap().trim_matches('"').replace("data/", "");
+                m.texture_name = format!("{}.png", texture_name);
             }
         }
     }
