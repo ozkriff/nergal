@@ -392,7 +392,6 @@ impl Anim {
         }
     }
 
-    // TODO: replace 'joint' with 'bone' everywhere
     fn build_joints(&mut self) {
         for i in 0..self.joints.len() {
             if let Some(parent_index) = self.joints[i].parent_index {
