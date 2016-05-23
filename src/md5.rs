@@ -224,7 +224,7 @@ fn expect_word(words: &mut SplitWhitespace, expected: &str) {
     }
 }
 
-fn read_mesh(buf: &mut BufRead) -> Mesh {
+fn load_mesh(buf: &mut BufRead) -> Mesh {
     let mut m = Mesh {
         indices: Vec::new(),
         vertex_positions: Vec::new(),
@@ -303,7 +303,7 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
                 m.texture_path = PathBuf::from(format!("{}.png", texture_name));
             }
             unexpected_tag => {
-                println!("read_mesh: unexpected tag: {}", unexpected_tag);
+                println!("load_mesh: unexpected tag: {}", unexpected_tag);
             }
         }
     }
@@ -325,7 +325,7 @@ fn compute_quat_w(v: Vector3<f32>) -> Quaternion<f32> {
     Quaternion::from_sv(w, v)
 }
 
-fn read_joints(buf: &mut BufRead) -> Vec<Joint> {
+fn load_joints(buf: &mut BufRead) -> Vec<Joint> {
     let mut joints = Vec::new();
     for line in buf.lines() {
         let line = line.unwrap();
@@ -403,11 +403,11 @@ pub fn load_model<P: AsRef<Path>>(path: P) -> Model {
             }
             "joints" => {
                 expect_word(&mut words, "{");
-                model.joints = read_joints(&mut buf);
+                model.joints = load_joints(&mut buf);
             }
             "mesh" => {
                 expect_word(&mut words, "{");
-                let mesh = read_mesh(&mut buf);
+                let mesh = load_mesh(&mut buf);
                 model.meshes.push(mesh);
             }
             "MD5Version" => {
