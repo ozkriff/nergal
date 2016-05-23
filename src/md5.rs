@@ -8,6 +8,13 @@ use cgmath::{Vector3, Quaternion, Rotation};
 use fs;
 use ::{VertexPos, VertexUV};
 
+const BIT_POS_X: i32 = 1;
+const BIT_POS_Y: i32 = 2;
+const BIT_POS_Z: i32 = 4;
+const BIT_QUAT_X: i32 = 8;
+const BIT_QUAT_Y: i32 = 16;
+const BIT_QUAT_Z: i32 = 32;
+
 #[derive(Debug, Copy, Clone)]
 struct VertexWeightIndices {
     first_weight_index: usize,
@@ -174,27 +181,27 @@ impl Anim {
             let flags = self.hierarchy[i].flags;
             let mut position = self.hierarchy[i].start_index;
             let j = &mut self.joints[i];
-            if flags & 1 != 0 {
+            if flags & BIT_POS_X != 0 {
                 j.position.x = self.frames[n][position];
                 position += 1;
             }
-            if flags & 2 != 0 {
+            if flags & BIT_POS_Y != 0 {
                 j.position.y = self.frames[n][position];
                 position += 1;
             }
-            if flags & 4 != 0 {
+            if flags & BIT_POS_Z != 0 {
                 j.position.z = self.frames[n][position];
                 position += 1;
             }
-            if flags & 8 != 0 {
+            if flags & BIT_QUAT_X != 0 {
                 j.orient.v.x = self.frames[n][position];
                 position += 1;
             }
-            if flags & 16 != 0 {
+            if flags & BIT_QUAT_Y != 0 {
                 j.orient.v.y = self.frames[n][position];
                 position += 1;
             }
-            if flags & 32 != 0 {
+            if flags & BIT_QUAT_Z != 0 {
                 j.orient.v.z = self.frames[n][position];
             }
             j.orient = compute_quat_w(j.orient.v);
