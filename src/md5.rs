@@ -4,9 +4,9 @@ use std::fmt::{Debug};
 use std::io::{BufRead};
 use std::path::{Path};
 use std::str::{SplitWhitespace, FromStr};
-use cgmath::{Vector2, Vector3, Quaternion, Rotation};
+use cgmath::{Vector3, Quaternion, Rotation};
 use fs;
-use ::{VertexPos, VertexTexCoords};
+use ::{VertexPos, VertexUV};
 
 #[derive(Debug, Clone)]
 struct VertexWeightIndices {
@@ -25,7 +25,7 @@ struct Weight {
 pub struct Mesh {
     shader: String,
     vertex_positions: Vec<VertexPos>,
-    vertex_tex_coords: Vec<VertexTexCoords>,
+    vertex_uvs: Vec<VertexUV>,
     indices: Vec<u16>,
     max_joints_per_vert: usize,
     weights: Vec<Weight>,
@@ -41,8 +41,8 @@ impl Mesh {
         &self.vertex_positions
     }
 
-    pub fn vertex_tex_coords(&self) -> &[VertexTexCoords] {
-        &self.vertex_tex_coords
+    pub fn vertex_uvs(&self) -> &[VertexUV] {
+        &self.vertex_uvs
     }
 
     pub fn indices(&self) -> &[u16] {
@@ -222,7 +222,7 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
     let mut m = Mesh {
         indices: Vec::new(),
         vertex_positions: Vec::new(),
-        vertex_tex_coords: Vec::new(),
+        vertex_uvs: Vec::new(),
         vertex_weight_indices: Vec::new(),
         weights: Vec::new(),
         shader: "".into(),
@@ -250,12 +250,12 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
             if tag == "vert" {
                 let index = parse_word(&mut words);
                 expect_word(&mut words, "(");
-                let tex_coords = Vector2 {
-                    x: parse_word(&mut words),
-                    y: parse_word(&mut words),
-                };
+                let uv = [
+                    parse_word(&mut words),
+                    parse_word(&mut words),
+                ];
                 expect_word(&mut words, ")");
-                m.vertex_tex_coords.push(VertexTexCoords{tex_coords: tex_coords.into()});
+                m.vertex_uvs.push(VertexUV{uv: uv.into()});
                 m.vertex_positions.push(VertexPos{position: [0.0, 0.0, 0.0]});
                 assert_eq!(m.vertex_positions.len() - 1, index);
                 m.vertex_weight_indices.push(VertexWeightIndices {

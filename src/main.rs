@@ -33,12 +33,12 @@ pub struct VertexPos {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct VertexTexCoords {
-    tex_coords: [f32; 2],
+pub struct VertexUV {
+    uv: [f32; 2],
 }
 
 implement_vertex!(VertexPos, position);
-implement_vertex!(VertexTexCoords, tex_coords);
+implement_vertex!(VertexUV, uv);
 
 fn load_texture<P: AsRef<Path>>(display: &Display, path: P) -> Texture2d {
     let f = fs::load(path);
@@ -103,37 +103,46 @@ fn create_display() -> Display {
         .unwrap()
 }
 
-// TODO: это все надо как-то более человечно сделать и названия нормальные дать
-struct MeshRenderInfo {
-    vertex_positions_buffer: VertexBuffer<VertexPos>,
-    vertex_tex_coords_buffer: VertexBuffer<VertexTexCoords>,
+struct GpuMesh {
+    vertex_pos_buffer: VertexBuffer<VertexPos>,
+    vertex_uv_buffer: VertexBuffer<VertexUV>,
     index_buffer: IndexBuffer<u16>,
     texture: Texture2d,
 }
 
-fn prepare_mesh(mesh: &md5::Mesh, display: &Display) -> MeshRenderInfo {
-    let prim_type = PrimitiveType::TrianglesList;
-    let index_buffer = IndexBuffer::new(
-        display, prim_type, mesh.indices()).unwrap();
-    let vertex_positions_buffer = VertexBuffer::new(
-        display, mesh.vertex_positions()).unwrap();
-    let vertex_tex_coords_buffer = VertexBuffer::new(
-        display, mesh.vertex_tex_coords()).unwrap();
-    let texture = load_texture(display, mesh.shader());
-    MeshRenderInfo {
-        vertex_positions_buffer: vertex_positions_buffer,
-        vertex_tex_coords_buffer: vertex_tex_coords_buffer,
-        index_buffer: index_buffer,
-        texture: texture,
+impl GpuMesh {
+    fn new(mesh: &md5::Mesh, display: &Display) -> GpuMesh {
+        let prim_type = PrimitiveType::TrianglesList;
+        let index_buffer = IndexBuffer::new(
+            display, prim_type, mesh.indices()).unwrap();
+        let pos_buffer = VertexBuffer::new(
+            display, mesh.vertex_positions()).unwrap();
+        let uv_buffer = VertexBuffer::new(
+            display, mesh.vertex_uvs()).unwrap();
+        let texture = load_texture(display, mesh.shader());
+        GpuMesh {
+            vertex_pos_buffer: pos_buffer,
+            vertex_uv_buffer: uv_buffer,
+            index_buffer: index_buffer,
+            texture: texture,
+        }
     }
 }
 
-fn prepare_model(model: &md5::Model, display: &Display) -> Vec<MeshRenderInfo> {
-    let mut v = Vec::new();
-    for mesh in model.meshes() {
-        v.push(prepare_mesh(mesh, display));
+struct GpuModel {
+    gpu_meshes: Vec<GpuMesh>,
+}
+
+impl GpuModel {
+    fn new(model: &md5::Model, display: &Display) -> GpuModel {
+        let mut gpu_meshes = Vec::new();
+        for mesh in model.meshes() {
+            gpu_meshes.push(GpuMesh::new(mesh, display));
+        }
+        GpuModel {
+            gpu_meshes: gpu_meshes,
+        }
     }
-    v
 }
 
 struct Visualizer {
@@ -149,7 +158,7 @@ struct Visualizer {
     mouse_pos: Vector2<i32>,
     is_lmb_pressed: bool,
     model: md5::Model,
-    model_render_infos: Vec<MeshRenderInfo>,
+    gpu_model: GpuModel,
     animations: Vec<md5::Anim>,
 }
 
@@ -159,7 +168,7 @@ impl Visualizer {
         let program = make_program(&display);
         let aspect = aspect(&display);
         let model = md5::load_model("simpleMan2.6.md5mesh");
-        let model_render_infos = prepare_model(&model, &display);
+        let gpu_model = GpuModel::new(&model, &display);
         let mut animations = Vec::new();
         for _ in 0..N*N {
             let mut anim = md5::load_anim("simpleMan2.6.md5anim");
@@ -182,7 +191,7 @@ impl Visualizer {
             mouse_pos: Vector2{x: 0, y: 0},
             is_lmb_pressed: false,
             model: model,
-            model_render_infos: model_render_infos,
+            gpu_model: gpu_model,
             animations: animations,
         }
     }
@@ -260,22 +269,24 @@ impl Visualizer {
         }
     }
 
+    // TODO: move to GpuModel
     fn draw_model_at(&self, target: &mut glium::Frame, model_mat: [[f32; 4]; 4]) {
+        // TODO: Camera struct
         let view_mat: [[f32; 4]; 4] = view_matrix(
             self.camera_angle_x,
             self.camera_angle_y,
             self.zoom,
             self.aspect,
         ).into();
-        for ri in &self.model_render_infos {
+        for mesh in &self.gpu_model.gpu_meshes {
             let uniforms = uniform! {
                 view_mat: view_mat,
                 model_mat: model_mat,
-                tex: &ri.texture,
+                tex: &mesh.texture,
             };
             target.draw(
-                (&ri.vertex_positions_buffer, &ri.vertex_tex_coords_buffer),
-                &ri.index_buffer,
+                (&mesh.vertex_pos_buffer, &mesh.vertex_uv_buffer),
+                &mesh.index_buffer,
                 &self.program,
                 &uniforms,
                 &draw_parameters(),
@@ -289,9 +300,9 @@ impl Visualizer {
         for x in 0..N {
             for y in 0..N {
                 self.model.compute(self.animations[y * N + x].joints());
-                for (i, ri) in self.model_render_infos.iter_mut().enumerate() {
+                for (i, mesh) in self.gpu_model.gpu_meshes.iter_mut().enumerate() {
                     let vertex_positions = self.model.meshes()[i].vertex_positions();
-                    ri.vertex_positions_buffer = VertexBuffer::new(
+                    mesh.vertex_pos_buffer = VertexBuffer::new(
                         &self.display, vertex_positions).unwrap();
                 }
                 let t = Vector3 {
