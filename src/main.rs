@@ -154,11 +154,11 @@ impl Visualizer {
         let display = create_display();
         let program = make_program(&display);
         let aspect = aspect(&display);
-        let model = md5::load_model("simpleMan2.6.md5mesh");
+        let model = md5::Model::new("simpleMan2.6.md5mesh");
         let gpu_model = GpuModel::new(&model, &display);
         let mut animations = Vec::new();
         for _ in 0..N*N {
-            let mut anim = md5::load_anim("simpleMan2.6.md5anim");
+            let mut anim = md5::Anim::new("simpleMan2.6.md5anim");
             let time = thread_rng().gen_range(0.0, anim.len());
             anim.set_time(time);
             animations.push(anim);
