@@ -179,30 +179,30 @@ impl Anim {
         self.reset_joints();
         for i in 0..self.joints.len() {
             let flags = self.hierarchy[i].flags;
-            let mut position = self.hierarchy[i].start_index;
+            let mut index_cursor = self.hierarchy[i].start_index;
             let j = &mut self.joints[i];
             if flags & BIT_POS_X != 0 {
-                j.position.x = self.frames[n][position];
-                position += 1;
+                j.position.x = self.frames[n][index_cursor];
+                index_cursor += 1;
             }
             if flags & BIT_POS_Y != 0 {
-                j.position.y = self.frames[n][position];
-                position += 1;
+                j.position.y = self.frames[n][index_cursor];
+                index_cursor += 1;
             }
             if flags & BIT_POS_Z != 0 {
-                j.position.z = self.frames[n][position];
-                position += 1;
+                j.position.z = self.frames[n][index_cursor];
+                index_cursor += 1;
             }
             if flags & BIT_QUAT_X != 0 {
-                j.orient.v.x = self.frames[n][position];
-                position += 1;
+                j.orient.v.x = self.frames[n][index_cursor];
+                index_cursor += 1;
             }
             if flags & BIT_QUAT_Y != 0 {
-                j.orient.v.y = self.frames[n][position];
-                position += 1;
+                j.orient.v.y = self.frames[n][index_cursor];
+                index_cursor += 1;
             }
             if flags & BIT_QUAT_Z != 0 {
-                j.orient.v.z = self.frames[n][position];
+                j.orient.v.z = self.frames[n][index_cursor];
             }
             j.orient = compute_quat_w(j.orient.v);
         }
