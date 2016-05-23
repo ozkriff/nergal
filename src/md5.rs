@@ -256,7 +256,7 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
                 ];
                 expect_word(&mut words, ")");
                 m.vertex_uvs.push(VertexUV{uv: uv.into()});
-                m.vertex_positions.push(VertexPos{position: [0.0, 0.0, 0.0]});
+                m.vertex_positions.push(VertexPos{position: [0.0; 3]});
                 assert_eq!(m.vertex_positions.len() - 1, index);
                 m.vertex_weight_indices.push(VertexWeightIndices {
                     first_weight_index: parse_word(&mut words),
