@@ -119,7 +119,7 @@ impl GpuMesh {
             display, mesh.vertex_positions()).unwrap();
         let uv_buffer = VertexBuffer::new(
             display, mesh.vertex_uvs()).unwrap();
-        let texture = load_texture(display, mesh.texture_name());
+        let texture = load_texture(display, mesh.texture_path());
         GpuMesh {
             vertex_pos_buffer: pos_buffer,
             vertex_uv_buffer: uv_buffer,

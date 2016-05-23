@@ -2,7 +2,7 @@
 
 use std::fmt::{Debug};
 use std::io::{BufRead};
-use std::path::{Path};
+use std::path::{Path, PathBuf};
 use std::str::{SplitWhitespace, FromStr};
 use cgmath::{Vector3, Quaternion, Rotation};
 use fs;
@@ -23,7 +23,7 @@ struct Weight {
 
 #[derive(Debug)]
 pub struct Mesh {
-    texture_name: String, // TODO: String -> Path
+    texture_path: PathBuf,
     vertex_positions: Vec<VertexPos>,
     vertex_uvs: Vec<VertexUV>,
     indices: Vec<u16>,
@@ -33,8 +33,8 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn texture_name(&self) -> &str {
-        &self.texture_name
+    pub fn texture_path(&self) -> &Path {
+        &self.texture_path
     }
 
     pub fn vertex_positions(&self) -> &[VertexPos] {
@@ -224,7 +224,7 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
         vertex_uvs: Vec::new(),
         vertex_weight_indices: Vec::new(),
         weights: Vec::new(),
-        texture_name: "".into(),
+        texture_path: PathBuf::new(),
         max_joints_per_vert: 0,
     };
     for line in buf.lines() {
@@ -289,7 +289,7 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
             }
             if tag == "shader" {
                 let texture_name = words.next().unwrap().trim_matches('"').replace("data/", "");
-                m.texture_name = format!("{}.png", texture_name);
+                m.texture_path = PathBuf::from(format!("{}.png", texture_name));
             }
         }
     }
