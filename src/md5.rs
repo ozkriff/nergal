@@ -8,20 +8,20 @@ use cgmath::{Vector3, Quaternion, Rotation};
 use fs;
 use ::{VertexPos, VertexUV};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 struct VertexWeightIndices {
     first_weight_index: usize,
     weight_count: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 struct Weight {
     joint_index: usize,
     weight: f32,
     position: Vector3<f32>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Mesh {
     texture_path: PathBuf,
     vertex_positions: Vec<VertexPos>,
@@ -77,7 +77,7 @@ impl Joint {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Model {
     joints: Vec<Joint>,
     meshes: Vec<Mesh>,
