@@ -237,23 +237,27 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
     for line in buf.lines() {
         let line = line.unwrap();
         let mut words = line.split_whitespace();
-        if let Some(tag) = words.next() {
-            if tag == "}" {
+        let tag = match words.next() {
+            Some(tag) => tag,
+            None => continue,
+        };
+        match tag {
+            "}" => {
                 break;
             }
-            if tag == "numverts" {
+            "numverts" => {
                 let num_vertices = parse_word(&mut words);
                 m.vertex_positions.reserve(num_vertices);
             }
-            if tag == "numtris" {
+            "numtris" => {
                 let num_tris: usize = parse_word(&mut words);
                 m.indices.reserve(num_tris * 3)
             }
-            if tag == "numweights" {
+            "numweights" => {
                 let num_weights = parse_word(&mut words);
                 m.weights.reserve(num_weights)
             }
-            if tag == "vert" {
+            "vert" => {
                 let index = parse_word(&mut words);
                 expect_word(&mut words, "(");
                 let uv = [
@@ -270,7 +274,7 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
                 });
                 assert_eq!(m.vertex_weight_indices.len() - 1, index);
             }
-            if tag == "weight" {
+            "weight" => {
                 let index = parse_word(&mut words);
                 let joint_index = parse_word(&mut words);
                 let weight = parse_word(&mut words);
@@ -287,16 +291,19 @@ fn read_mesh(buf: &mut BufRead) -> Mesh {
                 expect_word(&mut words, ")");
                 assert_eq!(m.weights.len() - 1, index);
             }
-            if tag == "tri" {
+            "tri" => {
                 let index: usize = parse_word(&mut words);
                 m.indices.push(parse_word(&mut words));
                 m.indices.push(parse_word(&mut words));
                 m.indices.push(parse_word(&mut words));
                 assert_eq!(m.indices.len() - 3, index * 3);
             }
-            if tag == "shader" {
+            "shader" => {
                 let texture_name = words.next().unwrap().trim_matches('"').replace("data/", "");
                 m.texture_path = PathBuf::from(format!("{}.png", texture_name));
+            }
+            unexpected_tag => {
+                println!("read_mesh: unexpected tag: {}", unexpected_tag);
             }
         }
     }
@@ -323,37 +330,39 @@ fn read_joints(buf: &mut BufRead) -> Vec<Joint> {
     for line in buf.lines() {
         let line = line.unwrap();
         let mut words = line.split_whitespace();
-        if let Some(tag) = words.next() {
-            if tag == "}" {
-                break;
-            }
-            let name = tag.trim_matches('"').into();
-            let parent_index: isize = parse_word(&mut words);
-            expect_word(&mut words, "(");
-            let position = Vector3 {
-                x: parse_word(&mut words),
-                y: parse_word(&mut words),
-                z: parse_word(&mut words),
-            };
-            expect_word(&mut words, ")");
-            expect_word(&mut words, "(");
-            let q = compute_quat_w(Vector3 {
-                x: parse_word(&mut words),
-                y: parse_word(&mut words),
-                z: parse_word(&mut words),
-            });
-            expect_word(&mut words, ")");
-            joints.push(Joint {
-                name: name,
-                parent_index: if parent_index != -1 {
-                    Some(parent_index as usize)
-                } else {
-                    None
-                },
-                position: position,
-                orient: q,
-            });
+        let tag = match words.next() {
+            Some(tag) => tag,
+            None => continue,
+        };
+        if tag == "}" {
+            break;
         }
+        let name = tag.trim_matches('"').into();
+        let parent_index: isize = parse_word(&mut words);
+        expect_word(&mut words, "(");
+        let position = Vector3 {
+            x: parse_word(&mut words),
+            y: parse_word(&mut words),
+            z: parse_word(&mut words),
+        };
+        expect_word(&mut words, ")");
+        expect_word(&mut words, "(");
+        let q = compute_quat_w(Vector3 {
+            x: parse_word(&mut words),
+            y: parse_word(&mut words),
+            z: parse_word(&mut words),
+        });
+        expect_word(&mut words, ")");
+        joints.push(Joint {
+            name: name,
+            parent_index: if parent_index != -1 {
+                Some(parent_index as usize)
+            } else {
+                None
+            },
+            position: position,
+            orient: q,
+        });
     }
     joints
 }
@@ -379,27 +388,37 @@ pub fn load_model<P: AsRef<Path>>(path: P) -> Model {
     let mut buf = fs::load(path);
     while let Some(line) = read_line(&mut buf) {
         let mut words = line.split_whitespace();
-        if let Some(tag) = words.next() {
-            if tag == "numJoints" {
+        let tag = match words.next() {
+            Some(tag) => tag,
+            None => continue,
+        };
+        match tag {
+            "numJoints" => {
                 let num_joints = parse_word(&mut words);
                 model.joints.reserve(num_joints);
             }
-            if tag == "numMeshes" {
+            "numMeshes" => {
                 let num_meshes = parse_word(&mut words);
                 model.meshes.reserve(num_meshes);
             }
-            if tag == "joints" {
+            "joints" => {
                 expect_word(&mut words, "{");
                 model.joints = read_joints(&mut buf);
             }
-            if tag == "mesh" {
+            "mesh" => {
                 expect_word(&mut words, "{");
                 let mesh = read_mesh(&mut buf);
                 model.meshes.push(mesh);
             }
-            // } else {
-            //     // puts("...");
-            // }
+            "MD5Version" => {
+                // unused
+            }
+            "commandline" => {
+                // unused
+            }
+            unexpected_tag => {
+                println!("load_model: unexpected tag: {}", unexpected_tag);
+            }
         }
     }
     for mesh in &mut model.meshes {
@@ -461,6 +480,16 @@ fn load_base_frame(buf: &mut BufRead) -> Vec<BaseFrameJoint> {
     frame
 }
 
+fn load_bounds(buf: &mut BufRead) {
+    for line in buf.lines() {
+        let line = line.unwrap();
+        if line.trim() == "}" {
+            break;
+        }
+        // unused
+    }
+}
+
 fn load_frame(buf: &mut BufRead, num_animated_components: usize) -> Vec<f32> {
     let mut frame = Vec::with_capacity(num_animated_components);
     for line in buf.lines() {
@@ -493,41 +522,54 @@ pub fn load_anim<P: AsRef<Path>>(path: P) -> Anim {
     let mut num_joints = 0;
     while let Some(line) = read_line(&mut buf) {
         let mut words = line.split_whitespace();
-        if let Some(tag) = words.next() {
-            if tag == "numFrames" {
+        let tag = match words.next() {
+            Some(tag) => tag,
+            None => continue,
+        };
+        match tag {
+            "numFrames" => {
                 let num_frames = parse_word(&mut words);
                 anim.frames.reserve(num_frames);
             }
-            if tag == "numJoints" {
+            "numJoints" => {
                 num_joints = parse_word(&mut words);
                 anim.hierarchy.reserve(num_joints);
                 anim.base_frame.reserve(num_joints);
                 anim.joints.reserve(num_joints);
             }
-            if tag == "frameRate" {
+            "frameRate" => {
                 anim.frame_rate = parse_word(&mut words);
             }
-            if tag == "numAnimatedComponents" {
+            "numAnimatedComponents" => {
                 anim.num_animated_components = parse_word(&mut words);
             }
-            if tag == "hierarchy" {
+            "hierarchy" => {
                 expect_word(&mut words, "{");
                 anim.hierarchy = load_hierarchy(&mut buf);
             }
-            if tag == "bounds" {
+            "bounds" => {
                 expect_word(&mut words, "{");
-                // not implemented
+                let _ = load_bounds(&mut buf);
             }
-            if tag == "baseframe" {
+            "baseframe" => {
                 expect_word(&mut words, "{");
                 anim.base_frame = load_base_frame(&mut buf);
             }
-            if tag == "frame" {
+            "frame" => {
                 let index = parse_word(&mut words);
                 expect_word(&mut words, "{");
                 anim.frames.push(load_frame(
                     &mut buf, anim.num_animated_components));
                 assert_eq!(anim.frames.len() - 1, index);
+            }
+            "MD5Version" => {
+                // unused
+            }
+            "commandline" => {
+                // unused
+            }
+            unexpected_tag => {
+                println!("load_anim: unexpected tag: {}", unexpected_tag);
             }
         }
     }
