@@ -319,7 +319,6 @@ impl Anim {
                 }
                 "frameRate" => {
                     anim.frame_rate = parse_word(&mut words);
-                    anim.frame_rate /= 15; // TODO: for debugging
                 }
                 "numAnimatedComponents" => {
                     anim.num_animated_components = parse_word(&mut words);
@@ -456,8 +455,11 @@ impl Anim {
                 let j_prev = &self.joints_prev[i];
                 let j_next = &self.joints_next[i];
                 let j = &mut self.joints[i];
+                let a = j_prev.orient;
+                let b = j_next.orient;
+                let b = if a.dot(b) > 0.0 { b } else { b * -1.0 };
                 j.position = j_prev.position.lerp(j_next.position, factor);
-                j.orient = j_prev.orient.slerp(j_next.orient, factor); // TODO: nlerp?
+                j.orient = a.nlerp(b, factor);
             }
         } else {
             self.joints = self.joints_prev.clone();
