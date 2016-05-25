@@ -157,8 +157,13 @@ impl Visualizer {
         let model = md5::Model::new("simpleMan2.6.md5mesh");
         let gpu_model = GpuModel::new(&model, &display);
         let mut animations = Vec::new();
-        for _ in 0..N*N {
-            let mut anim = md5::Anim::new("simpleMan2.6.md5anim");
+        for i in 0..N*N {
+            let mode = if i % 2 == 0 {
+                md5::AnimationMode::KeyframesOnly
+            } else {
+                md5::AnimationMode::Interpolation
+            };
+            let mut anim = md5::Anim::new("simpleMan2.6.md5anim", mode);
             let time = thread_rng().gen_range(0.0, anim.len());
             anim.set_time(time);
             animations.push(anim);

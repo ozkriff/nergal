@@ -4,7 +4,7 @@ use std::fmt::{Debug};
 use std::io::{BufRead};
 use std::path::{Path, PathBuf};
 use std::str::{SplitWhitespace, FromStr};
-use cgmath::{Vector3, Quaternion, Rotation};
+use cgmath::{Vector3, Quaternion, Rotation, InnerSpace};
 use fs;
 
 const BIT_POS_X: i32 = 1;
@@ -264,6 +264,12 @@ struct BaseFrameJoint {
     orient: Quaternion<f32>,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum AnimationMode {
+    KeyframesOnly,
+    Interpolation,
+}
+
 #[derive(Debug, Clone)]
 pub struct Anim {
     hierarchy: Vec<HierarchyItem>,
@@ -271,23 +277,27 @@ pub struct Anim {
     frames: Vec<Vec<f32>>,
     joints: Vec<Joint>,
     num_animated_components: usize,
-    frame: usize,
     frame_rate: usize,
     time: f32,
+    joints_prev: Vec<Joint>,
+    joints_next: Vec<Joint>,
+    mode: AnimationMode,
 }
 
 impl Anim {
-    pub fn new<P: AsRef<Path>>(path: P) -> Anim {
+    pub fn new<P: AsRef<Path>>(path: P, mode: AnimationMode) -> Anim {
         let mut buf = fs::load(path);
         let mut anim = Anim {
             hierarchy: Vec::new(),
             base_frame: Vec::new(),
             frames: Vec::new(),
             joints: Vec::new(),
+            joints_prev: Vec::new(),
+            joints_next: Vec::new(),
             num_animated_components: 0,
-            frame: 0,
             frame_rate: 0,
             time: 0.0,
+            mode: mode,
         };
         let mut num_joints = 0;
         while let Some(line) = read_line(&mut buf) {
@@ -309,6 +319,7 @@ impl Anim {
                 }
                 "frameRate" => {
                     anim.frame_rate = parse_word(&mut words);
+                    anim.frame_rate /= 15; // TODO: for debugging
                 }
                 "numAnimatedComponents" => {
                     anim.num_animated_components = parse_word(&mut words);
@@ -352,8 +363,12 @@ impl Anim {
                 orient: anim.base_frame[i].orient,
             });
         }
-        anim.reset_joints();
-        anim.build_joints();
+        anim.joints_prev = anim.joints.clone();
+        if mode == AnimationMode::Interpolation {
+            anim.joints_next = anim.joints.clone();
+        }
+        Anim::reset_joints(&anim.base_frame, &mut anim.joints);
+        Anim::build_joints(&mut anim.joints);
         anim
     }
 
@@ -383,20 +398,28 @@ impl Anim {
         &self.joints
     }
 
-    fn reset_joints(&mut self) {
-        for i in 0..self.joints.len() {
-            let j = &mut self.joints[i];
-            let f = &self.base_frame[i];
+    fn wrap_frame_index(&self, n: usize) -> usize {
+        let mut n = n;
+        while n >= self.frames.len() {
+            n -= self.frames.len();
+        }
+        n
+    }
+
+    fn reset_joints(base_frame: &[BaseFrameJoint], joints: &mut [Joint]) {
+        for i in 0..joints.len() {
+            let j = &mut joints[i];
+            let f = &base_frame[i];
             j.position = f.position;
             j.orient = f.orient;
         }
     }
 
-    fn build_joints(&mut self) {
-        for i in 0..self.joints.len() {
-            if let Some(parent_index) = self.joints[i].parent_index {
-                let p = self.joints[parent_index].clone();
-                let j = &mut self.joints[i];
+    fn build_joints(joints: &mut [Joint]) {
+        for i in 0..joints.len() {
+            if let Some(parent_index) = joints[i].parent_index {
+                let p = joints[parent_index].clone();
+                let j = &mut joints[i];
                 j.position = p.position + p.orient.rotate_vector(j.position);
                 j.orient = p.orient * j.orient;
             }
@@ -410,42 +433,76 @@ impl Anim {
 
     pub fn update(&mut self, dt: f32) {
         self.time += dt;
-        let mut n = (self.time * self.frame_rate as f32) as usize;
-        while n >= self.frames.len() {
-            n -= self.frames.len();
+        let t = self.time * self.frame_rate as f32;
+        let factor = t % 1.0;
+        let prev_frame_index = self.wrap_frame_index(t as usize);
+        Anim::update_internal(
+            &self.base_frame,
+            &self.hierarchy,
+            &self.frames,
+            prev_frame_index,
+            &mut self.joints_prev,
+        );
+        if self.mode == AnimationMode::Interpolation {
+            let next_frame_index = self.wrap_frame_index(prev_frame_index + 1);
+            Anim::update_internal(
+                &self.base_frame,
+                &self.hierarchy,
+                &self.frames,
+                next_frame_index,
+                &mut self.joints_next,
+            );
+            for i in 0..self.joints.len() {
+                let j_prev = &self.joints_prev[i];
+                let j_next = &self.joints_next[i];
+                let j = &mut self.joints[i];
+                j.position = j_prev.position.lerp(j_next.position, factor);
+                j.orient = j_prev.orient.slerp(j_next.orient, factor); // TODO: nlerp?
+            }
+        } else {
+            self.joints = self.joints_prev.clone();
         }
-        self.frame = n;
-        self.reset_joints();
-        for i in 0..self.joints.len() {
-            let flags = self.hierarchy[i].flags;
-            let mut index_cursor = self.hierarchy[i].start_index;
-            let j = &mut self.joints[i];
+    }
+
+    fn update_internal(
+        base_frame: &[BaseFrameJoint],
+        hierarchy: &[HierarchyItem],
+        frames: &[Vec<f32>],
+        n: usize,
+        joints: &mut [Joint],
+    ) {
+        Anim::reset_joints(base_frame, joints);
+        let f = &frames[n];
+        for i in 0..joints.len() {
+            let flags = hierarchy[i].flags;
+            let mut index_cursor = hierarchy[i].start_index;
+            let j = &mut joints[i];
             if flags & BIT_POS_X != 0 {
-                j.position.x = self.frames[n][index_cursor];
+                j.position.x = f[index_cursor];
                 index_cursor += 1;
             }
             if flags & BIT_POS_Y != 0 {
-                j.position.y = self.frames[n][index_cursor];
+                j.position.y = f[index_cursor];
                 index_cursor += 1;
             }
             if flags & BIT_POS_Z != 0 {
-                j.position.z = self.frames[n][index_cursor];
+                j.position.z = f[index_cursor];
                 index_cursor += 1;
             }
             if flags & BIT_QUAT_X != 0 {
-                j.orient.v.x = self.frames[n][index_cursor];
+                j.orient.v.x = f[index_cursor];
                 index_cursor += 1;
             }
             if flags & BIT_QUAT_Y != 0 {
-                j.orient.v.y = self.frames[n][index_cursor];
+                j.orient.v.y = f[index_cursor];
                 index_cursor += 1;
             }
             if flags & BIT_QUAT_Z != 0 {
-                j.orient.v.z = self.frames[n][index_cursor];
+                j.orient.v.z = f[index_cursor];
             }
             j.orient = compute_quat_w(j.orient.v);
         }
-        self.build_joints();
+        Anim::build_joints(joints);
     }
 
     fn load_joints(buf: &mut BufRead) -> Vec<Joint> {
