@@ -264,12 +264,6 @@ struct BaseFrameJoint {
     orient: Quaternion<f32>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum AnimationMode {
-    KeyframesOnly,
-    Interpolation,
-}
-
 #[derive(Debug, Clone)]
 pub struct Anim {
     hierarchy: Vec<HierarchyItem>,
@@ -281,11 +275,10 @@ pub struct Anim {
     time: f32,
     joints_prev: Vec<Joint>,
     joints_next: Vec<Joint>,
-    mode: AnimationMode,
 }
 
 impl Anim {
-    pub fn new<P: AsRef<Path>>(path: P, mode: AnimationMode) -> Anim {
+    pub fn new<P: AsRef<Path>>(path: P) -> Anim {
         let mut buf = fs::load(path);
         let mut anim = Anim {
             hierarchy: Vec::new(),
@@ -297,7 +290,6 @@ impl Anim {
             num_animated_components: 0,
             frame_rate: 0,
             time: 0.0,
-            mode: mode,
         };
         let mut num_joints = 0;
         while let Some(line) = read_line(&mut buf) {
@@ -363,9 +355,7 @@ impl Anim {
             });
         }
         anim.joints_prev = anim.joints.clone();
-        if mode == AnimationMode::Interpolation {
-            anim.joints_next = anim.joints.clone();
-        }
+        anim.joints_next = anim.joints.clone();
         Anim::reset_joints(&anim.base_frame, &mut anim.joints);
         Anim::build_joints(&mut anim.joints);
         anim
@@ -442,27 +432,23 @@ impl Anim {
             prev_frame_index,
             &mut self.joints_prev,
         );
-        if self.mode == AnimationMode::Interpolation {
-            let next_frame_index = self.wrap_frame_index(prev_frame_index + 1);
-            Anim::update_internal(
-                &self.base_frame,
-                &self.hierarchy,
-                &self.frames,
-                next_frame_index,
-                &mut self.joints_next,
-            );
-            for i in 0..self.joints.len() {
-                let j_prev = &self.joints_prev[i];
-                let j_next = &self.joints_next[i];
-                let j = &mut self.joints[i];
-                let a = j_prev.orient;
-                let b = j_next.orient;
-                let b = if a.dot(b) > 0.0 { b } else { b * -1.0 };
-                j.position = j_prev.position.lerp(j_next.position, factor);
-                j.orient = a.nlerp(b, factor);
-            }
-        } else {
-            self.joints = self.joints_prev.clone();
+        let next_frame_index = self.wrap_frame_index(prev_frame_index + 1);
+        Anim::update_internal(
+            &self.base_frame,
+            &self.hierarchy,
+            &self.frames,
+            next_frame_index,
+            &mut self.joints_next,
+        );
+        for i in 0..self.joints.len() {
+            let j_prev = &self.joints_prev[i];
+            let j_next = &self.joints_next[i];
+            let j = &mut self.joints[i];
+            let a = j_prev.orient;
+            let b = j_next.orient;
+            let b = if a.dot(b) > 0.0 { b } else { b * -1.0 };
+            j.position = j_prev.position.lerp(j_next.position, factor);
+            j.orient = a.nlerp(b, factor);
         }
     }
 
