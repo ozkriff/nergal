@@ -5,7 +5,6 @@ use std::io::{BufRead};
 use std::path::{Path, PathBuf};
 use std::str::{SplitWhitespace, FromStr};
 use cgmath::{Vector3, Quaternion, Rotation, InnerSpace};
-use fs;
 
 const BIT_POS_X: i32 = 1;
 const BIT_POS_Y: i32 = 2;
@@ -192,13 +191,12 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn new<P: AsRef<Path>>(path: P) -> Model {
+    pub fn new<B: BufRead>(buf: &mut B) -> Model {
         let mut model = Model {
             joints: Vec::new(),
             meshes: Vec::new(),
         };
-        let mut buf = fs::load(path);
-        while let Some(line) = read_line(&mut buf) {
+        while let Some(line) = read_line(buf) {
             let mut words = line.split_whitespace();
             let tag = match words.next() {
                 Some(tag) => tag,
@@ -215,11 +213,11 @@ impl Model {
                 }
                 "joints" => {
                     expect_word(&mut words, "{");
-                    model.joints = Anim::load_joints(&mut buf);
+                    model.joints = Anim::load_joints(buf);
                 }
                 "mesh" => {
                     expect_word(&mut words, "{");
-                    let mesh = Mesh::new(&mut buf);
+                    let mesh = Mesh::new(buf);
                     model.meshes.push(mesh);
                 }
                 "MD5Version" => {
@@ -278,8 +276,7 @@ pub struct Anim {
 }
 
 impl Anim {
-    pub fn new<P: AsRef<Path>>(path: P) -> Anim {
-        let mut buf = fs::load(path);
+    pub fn new<B: BufRead>(buf: &mut B) -> Anim {
         let mut anim = Anim {
             hierarchy: Vec::new(),
             base_frame: Vec::new(),
@@ -292,7 +289,7 @@ impl Anim {
             time: 0.0,
         };
         let mut num_joints = 0;
-        while let Some(line) = read_line(&mut buf) {
+        while let Some(line) = read_line(buf) {
             let mut words = line.split_whitespace();
             let tag = match words.next() {
                 Some(tag) => tag,
@@ -317,21 +314,21 @@ impl Anim {
                 }
                 "hierarchy" => {
                     expect_word(&mut words, "{");
-                    anim.hierarchy = Anim::load_hierarchy(&mut buf);
+                    anim.hierarchy = Anim::load_hierarchy(buf);
                 }
                 "bounds" => {
                     expect_word(&mut words, "{");
-                    let _ = Anim::load_bounds(&mut buf);
+                    let _ = Anim::load_bounds(buf);
                 }
                 "baseframe" => {
                     expect_word(&mut words, "{");
-                    anim.base_frame = Anim::load_base_frame(&mut buf);
+                    anim.base_frame = Anim::load_base_frame(buf);
                 }
                 "frame" => {
                     let index = parse_word(&mut words);
                     expect_word(&mut words, "{");
                     anim.frames.push(Anim::load_frame(
-                        &mut buf, anim.num_animated_components));
+                        buf, anim.num_animated_components));
                     assert_eq!(anim.frames.len() - 1, index);
                 }
                 "MD5Version" => {
