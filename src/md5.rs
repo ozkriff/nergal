@@ -263,14 +263,19 @@ struct BaseFrameJoint {
 }
 
 #[derive(Debug, Clone)]
-pub struct Anim {
+pub struct AnimConstData {
     hierarchy: Vec<HierarchyItem>,
     base_frame: Vec<BaseFrameJoint>,
     frames: Vec<Vec<f32>>,
-    joints: Vec<Joint>,
     num_animated_components: usize,
     frame_rate: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct Anim {
+    cdata: AnimConstData,
     time: f32,
+    joints: Vec<Joint>,
     joints_prev: Vec<Joint>,
     joints_next: Vec<Joint>,
 }
@@ -278,14 +283,16 @@ pub struct Anim {
 impl Anim {
     pub fn new<B: BufRead>(buf: &mut B) -> Anim {
         let mut anim = Anim {
-            hierarchy: Vec::new(),
-            base_frame: Vec::new(),
-            frames: Vec::new(),
+            cdata: AnimConstData {
+                hierarchy: Vec::new(),
+                base_frame: Vec::new(),
+                frames: Vec::new(),
+                num_animated_components: 0,
+                frame_rate: 0,
+            },
             joints: Vec::new(),
             joints_prev: Vec::new(),
             joints_next: Vec::new(),
-            num_animated_components: 0,
-            frame_rate: 0,
             time: 0.0,
         };
         let mut num_joints = 0;
@@ -298,38 +305,38 @@ impl Anim {
             match tag {
                 "numFrames" => {
                     let num_frames = parse_word(&mut words);
-                    anim.frames.reserve(num_frames);
+                    anim.cdata.frames.reserve(num_frames);
                 }
                 "numJoints" => {
                     num_joints = parse_word(&mut words);
-                    anim.hierarchy.reserve(num_joints);
-                    anim.base_frame.reserve(num_joints);
+                    anim.cdata.hierarchy.reserve(num_joints);
+                    anim.cdata.base_frame.reserve(num_joints);
                     anim.joints.reserve(num_joints);
                 }
                 "frameRate" => {
-                    anim.frame_rate = parse_word(&mut words);
+                    anim.cdata.frame_rate = parse_word(&mut words);
                 }
                 "numAnimatedComponents" => {
-                    anim.num_animated_components = parse_word(&mut words);
+                    anim.cdata.num_animated_components = parse_word(&mut words);
                 }
                 "hierarchy" => {
                     expect_word(&mut words, "{");
-                    anim.hierarchy = Anim::load_hierarchy(buf);
+                    anim.cdata.hierarchy = Anim::load_hierarchy(buf);
                 }
                 "bounds" => {
                     expect_word(&mut words, "{");
-                    let _ = Anim::load_bounds(buf);
+                    Anim::load_bounds(buf);
                 }
                 "baseframe" => {
                     expect_word(&mut words, "{");
-                    anim.base_frame = Anim::load_base_frame(buf);
+                    anim.cdata.base_frame = Anim::load_base_frame(buf);
                 }
                 "frame" => {
                     let index = parse_word(&mut words);
                     expect_word(&mut words, "{");
-                    anim.frames.push(Anim::load_frame(
-                        buf, anim.num_animated_components));
-                    assert_eq!(anim.frames.len() - 1, index);
+                    anim.cdata.frames.push(Anim::load_frame(
+                        buf, anim.cdata.num_animated_components));
+                    assert_eq!(anim.cdata.frames.len() - 1, index);
                 }
                 "MD5Version" => {
                     // unused
@@ -345,15 +352,15 @@ impl Anim {
         anim.joints.reserve(num_joints);
         for i in 0..num_joints {
             anim.joints.push(Joint {
-                name: anim.hierarchy[i].name.clone(),
-                parent_index: anim.hierarchy[i].parent,
-                position: anim.base_frame[i].position,
-                orient: anim.base_frame[i].orient,
+                name: anim.cdata.hierarchy[i].name.clone(),
+                parent_index: anim.cdata.hierarchy[i].parent,
+                position: anim.cdata.base_frame[i].position,
+                orient: anim.cdata.base_frame[i].orient,
             });
         }
         anim.joints_prev = anim.joints.clone();
         anim.joints_next = anim.joints.clone();
-        Anim::reset_joints(&anim.base_frame, &mut anim.joints);
+        Anim::reset_joints(&anim.cdata.base_frame, &mut anim.joints);
         Anim::build_joints(&mut anim.joints);
         anim
     }
@@ -377,7 +384,7 @@ impl Anim {
     }
 
     pub fn len(&self) -> f32 {
-        self.frames.len() as f32 / self.frame_rate as f32
+        self.cdata.frames.len() as f32 / self.cdata.frame_rate as f32
     }
 
     pub fn joints(&self) -> &[Joint] {
@@ -386,8 +393,8 @@ impl Anim {
 
     fn wrap_frame_index(&self, n: usize) -> usize {
         let mut n = n;
-        while n >= self.frames.len() {
-            n -= self.frames.len();
+        while n >= self.cdata.frames.len() {
+            n -= self.cdata.frames.len();
         }
         n
     }
@@ -419,24 +426,12 @@ impl Anim {
 
     pub fn update(&mut self, dt: f32) {
         self.time += dt;
-        let t = self.time * self.frame_rate as f32;
+        let t = self.time * self.cdata.frame_rate as f32;
         let factor = t % 1.0;
         let prev_frame_index = self.wrap_frame_index(t as usize);
-        Anim::update_internal(
-            &self.base_frame,
-            &self.hierarchy,
-            &self.frames,
-            prev_frame_index,
-            &mut self.joints_prev,
-        );
+        Anim::update_internal(&self.cdata, prev_frame_index, &mut self.joints_prev);
         let next_frame_index = self.wrap_frame_index(prev_frame_index + 1);
-        Anim::update_internal(
-            &self.base_frame,
-            &self.hierarchy,
-            &self.frames,
-            next_frame_index,
-            &mut self.joints_next,
-        );
+        Anim::update_internal(&self.cdata, next_frame_index, &mut self.joints_next);
         for i in 0..self.joints.len() {
             let j_prev = &self.joints_prev[i];
             let j_next = &self.joints_next[i];
@@ -449,18 +444,12 @@ impl Anim {
         }
     }
 
-    fn update_internal(
-        base_frame: &[BaseFrameJoint],
-        hierarchy: &[HierarchyItem],
-        frames: &[Vec<f32>],
-        n: usize,
-        joints: &mut [Joint],
-    ) {
-        Anim::reset_joints(base_frame, joints);
-        let f = &frames[n];
+    fn update_internal(cdata: &AnimConstData, n: usize, joints: &mut [Joint]) {
+        Anim::reset_joints(&cdata.base_frame, joints);
+        let f = &cdata.frames[n];
         for i in 0..joints.len() {
-            let flags = hierarchy[i].flags;
-            let mut index_cursor = hierarchy[i].start_index;
+            let flags = cdata.hierarchy[i].flags;
+            let mut index_cursor = cdata.hierarchy[i].start_index;
             let j = &mut joints[i];
             if flags & BIT_POS_X != 0 {
                 j.position.x = f[index_cursor];
