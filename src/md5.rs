@@ -383,7 +383,7 @@ impl Anim {
         frame
     }
 
-    pub fn len(&self) -> f32 {
+    pub fn duration(&self) -> f32 {
         self.cdata.frames.len() as f32 / self.cdata.frame_rate as f32
     }
 
@@ -447,10 +447,9 @@ impl Anim {
     fn update_internal(cdata: &AnimConstData, n: usize, joints: &mut [Joint]) {
         Anim::reset_joints(&cdata.base_frame, joints);
         let f = &cdata.frames[n];
-        for i in 0..joints.len() {
+        for (i, j) in joints.iter_mut().enumerate() {
             let flags = cdata.hierarchy[i].flags;
             let mut index_cursor = cdata.hierarchy[i].start_index;
-            let j = &mut joints[i];
             if flags & BIT_POS_X != 0 {
                 j.position.x = f[index_cursor];
                 index_cursor += 1;

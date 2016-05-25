@@ -159,7 +159,7 @@ impl Visualizer {
         let mut animations = Vec::new();
         for _ in 0..N * N {
             let mut anim = md5::Anim::new(&mut fs::load("simpleMan2.6.md5anim"));
-            let time = thread_rng().gen_range(0.0, anim.len());
+            let time = thread_rng().gen_range(0.0, anim.duration());
             anim.set_time(time);
             animations.push(anim);
         }
