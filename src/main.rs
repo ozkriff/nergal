@@ -17,7 +17,8 @@ mod md5;
 use std::path::{Path};
 use std::f32::consts::{PI};
 use rand::{thread_rng, Rng};
-use glium::{glutin, Texture2d, DisplayBuild, Surface, VertexBuffer, IndexBuffer, Display};
+use glium::texture::{SrgbTexture2d};
+use glium::{glutin, DisplayBuild, Surface, VertexBuffer, IndexBuffer, Display};
 use glium::index::PrimitiveType;
 use glium::glutin::ElementState::{Pressed, Released};
 use cgmath::{Matrix4, Matrix3, Vector3, Vector2, Rad};
@@ -28,13 +29,13 @@ const N: usize = 5;
 implement_vertex!(VertexPos, position);
 implement_vertex!(VertexUV, uv);
 
-fn load_texture<P: AsRef<Path>>(display: &Display, path: P) -> Texture2d {
+fn load_texture<P: AsRef<Path>>(display: &Display, path: P) -> SrgbTexture2d {
     let f = fs::load(path);
     let image = image::load(f, image::PNG).unwrap().to_rgba();
     let image_dimensions = image.dimensions();
     let image = glium::texture::RawImage2d::from_raw_rgba(
         image.into_raw(), image_dimensions);
-    Texture2d::new(display, image).unwrap()
+    SrgbTexture2d::new(display, image).unwrap()
 }
 
 fn make_program(display: &Display) -> glium::Program {
@@ -95,7 +96,7 @@ struct GpuMesh {
     vertex_pos_buffer: VertexBuffer<VertexPos>,
     vertex_uv_buffer: VertexBuffer<VertexUV>,
     index_buffer: IndexBuffer<u16>,
-    texture: Texture2d,
+    texture: SrgbTexture2d,
 }
 
 impl GpuMesh {
