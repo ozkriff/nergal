@@ -4,7 +4,7 @@ use std::fmt::{Debug};
 use std::io::{BufRead};
 use std::path::{Path, PathBuf};
 use std::str::{SplitWhitespace, FromStr};
-use cgmath::{Vector3, Quaternion, Rotation, InnerSpace};
+use cgmath::{Vector3, Matrix4, Quaternion, Rotation, InnerSpace};
 
 const BIT_POS_X: i32 = 1;
 const BIT_POS_Y: i32 = 2;
@@ -172,7 +172,7 @@ impl Mesh {
 
 #[derive(Debug, Clone)]
 pub struct Joint {
-    name: String,
+    name: String, // TODO: Move `name` out of this struct
     parent_index: Option<usize>,
     position: Vector3<f32>,
     orient: Quaternion<f32>,
@@ -181,6 +181,10 @@ pub struct Joint {
 impl Joint {
     fn transform(&self, v: &Vector3<f32>) -> Vector3<f32> {
         self.orient.rotate_vector(*v) + self.position
+    }
+
+    pub fn mat(&self) -> Matrix4<f32> {
+        Matrix4::from_translation(self.position) * Matrix4::from(self.orient)
     }
 }
 

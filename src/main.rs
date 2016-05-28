@@ -134,6 +134,34 @@ impl GpuModel {
     }
 }
 
+fn load_test_object(display: &Display) -> GpuMesh {
+    let n = 0.3;
+    let positions = [
+        VertexPos{position: [-n, 0.0, 0.0]},
+        VertexPos{position: [-n, n + n, 0.0]},
+        VertexPos{position: [n, 0.0, 0.0]},
+        VertexPos{position: [n, n + n, 0.0]},
+    ];
+    let uvs = [
+        VertexUV{uv: [0.0, 1.0]},
+        VertexUV{uv: [0.0, 0.0]},
+        VertexUV{uv: [1.0, 1.0]},
+        VertexUV{uv: [1.0, 0.0]},
+    ];
+    let pos_buffer = glium::VertexBuffer::new(display, &positions).unwrap();
+    let uv_buffer = glium::VertexBuffer::new(display, &uvs).unwrap();
+    let indices: [u16; 6] = [0, 1, 2, 1, 2, 3];
+    let prim = PrimitiveType::TrianglesList;
+    let index_buffer = glium::IndexBuffer::new(display, prim, &indices).unwrap();
+    let texture = load_texture(display, "test.png");
+    GpuMesh {
+        vertex_pos_buffer: pos_buffer,
+        vertex_uv_buffer: uv_buffer,
+        index_buffer: index_buffer,
+        texture: texture,
+    }
+}
+
 struct Visualizer {
     display: Display,
     program: glium::Program,
@@ -147,6 +175,7 @@ struct Visualizer {
     is_lmb_pressed: bool,
     model: md5::Model,
     gpu_model: GpuModel,
+    test_object: GpuMesh,
     animations: Vec<md5::Anim>,
 }
 
@@ -154,6 +183,7 @@ impl Visualizer {
     fn new() -> Visualizer {
         let display = create_display();
         let program = make_program(&display);
+        let test_object = load_test_object(&display);
         let aspect = aspect(&display);
         let model = md5::Model::new(&mut fs::load("simpleMan2.6.md5mesh"));
         let gpu_model = GpuModel::new(&model, &display);
@@ -178,6 +208,7 @@ impl Visualizer {
             is_lmb_pressed: false,
             model: model,
             gpu_model: gpu_model,
+            test_object: test_object,
             animations: animations,
         }
     }
@@ -256,36 +287,55 @@ impl Visualizer {
     }
 
     // TODO: move to GpuModel
-    fn draw_model_at(&self, target: &mut glium::Frame, model_mat: [[f32; 4]; 4]) {
+    fn draw_model_at(
+        &self,
+        target: &mut glium::Frame,
+        gpu_model: &GpuModel,
+        model_mat: Matrix4<f32>,
+        view_mat: Matrix4<f32>,
+    ) {
         // TODO: Camera struct
-        let view_mat: [[f32; 4]; 4] = view_matrix(
+        for mesh in &gpu_model.gpu_meshes {
+            self.draw_mesh_at(target, mesh, model_mat, view_mat);
+        }
+    }
+
+    fn draw_mesh_at(
+        &self,
+        target: &mut glium::Frame,
+        mesh: &GpuMesh,
+        model_mat: Matrix4<f32>,
+        view_mat: Matrix4<f32>,
+    ) {
+        let view_mat: [[f32; 4]; 4] = view_mat.into();
+        let model_mat: [[f32; 4]; 4] = model_mat.into();
+        let uniforms = uniform! {
+            view_mat: view_mat,
+            model_mat: model_mat,
+            tex: &mesh.texture,
+        };
+        target.draw(
+            (&mesh.vertex_pos_buffer, &mesh.vertex_uv_buffer),
+            &mesh.index_buffer,
+            &self.program,
+            &uniforms,
+            &draw_parameters(),
+        ).unwrap();
+    }
+
+    fn draw(&mut self) {
+        let view_mat = view_matrix(
             self.camera_angle_x,
             self.camera_angle_y,
             self.zoom,
             self.aspect,
-        ).into();
-        for mesh in &self.gpu_model.gpu_meshes {
-            let uniforms = uniform! {
-                view_mat: view_mat,
-                model_mat: model_mat,
-                tex: &mesh.texture,
-            };
-            target.draw(
-                (&mesh.vertex_pos_buffer, &mesh.vertex_uv_buffer),
-                &mesh.index_buffer,
-                &self.program,
-                &uniforms,
-                &draw_parameters(),
-            ).unwrap();
-        }
-    }
-
-    fn draw(&mut self) {
+        );
         let mut target = self.display.draw();
         target.clear_color_and_depth((0.0, 0.0, 0.0, 0.0), 1.0);
         for x in 0..N {
             for y in 0..N {
-                self.model.update_vertex_positions(self.animations[y * N + x].joints());
+                let a = &self.animations[y * N + x];
+                self.model.update_vertex_positions(a.joints());
                 for (i, mesh) in self.gpu_model.gpu_meshes.iter_mut().enumerate() {
                     let vertex_positions = self.model.meshes()[i].vertex_positions();
                     mesh.vertex_pos_buffer = VertexBuffer::new(
@@ -296,8 +346,12 @@ impl Visualizer {
                     y: y as f32 * 2.0 - N as f32,
                     z: 0.0,
                 };
-                let m = Matrix4::from_translation(t).into();
-                self.draw_model_at(&mut target, m);
+                let m = Matrix4::from_translation(t);
+                self.draw_model_at(&mut target, &self.gpu_model, m, view_mat);
+                for j in a.joints() {
+                    let j_mat = (m * j.mat()).into();
+                    self.draw_mesh_at(&mut target, &self.test_object, j_mat, view_mat);
+                }
             }
         }
         target.finish().unwrap();
